@@ -1,0 +1,1 @@
+New CRDs should not have boolean fields.
