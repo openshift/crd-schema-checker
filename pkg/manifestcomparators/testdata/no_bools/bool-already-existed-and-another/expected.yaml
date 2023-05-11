@@ -1,0 +1,7 @@
+items:
+  - name: NoBools
+    errors:
+      - crd/schedulers.config.openshift.io version/v1 field/^.spec.newIllegalField may not
+        be a boolean
+    warnings:
+    infos:

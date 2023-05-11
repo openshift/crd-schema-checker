@@ -1,0 +1,8 @@
+items:
+  - name: NoFieldRemoval
+    errors:
+      - crd/schedulers.config.openshift.io version/v1 field/^.spec.policy may not be removed
+      - crd/schedulers.config.openshift.io version/v1 field/^.spec.policy.name may not be
+        removed
+    warnings:
+    infos:

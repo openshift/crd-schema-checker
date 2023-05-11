@@ -1,0 +1,2 @@
+If a CRD already has a boolean field, it cannot be removed, so it shouldn't count against.
+However, a new boolean field should fail on that particular one.
