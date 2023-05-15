@@ -1,6 +1,6 @@
 package defaultcomparators
 
-import "github.com/deads2k/crd-schema-compatibility-checker/pkg/manifestcomparators"
+import "github.com/openshift/crd-schema-compatibility-checker/pkg/manifestcomparators"
 
 func must(err error) {
 	if err != nil {
@@ -43,7 +43,7 @@ func NewDefaultComparators() manifestcomparators.CRDComparatorRegistry {
 		On a risky update we could add a live-lookup mode that runs existing data through the new validation rules as
 		though it was a create and runs it a second time as though it was a "from" level that had dummy annotation change.
 
-		.annotations[version.path.to.field/compratorname] = github.com/deads2k
+		.annotations[version.path.to.field/compratorname] = github.com/openshift
 
 		Require cryptographically signed hash of offensive change to allow?
 	*/
