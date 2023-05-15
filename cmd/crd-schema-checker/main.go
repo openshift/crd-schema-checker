@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/deads2k/crd-schema-compatibility-checker/pkg/cmd/checkmanifests"
+	"github.com/openshift/crd-schema-compatibility-checker/pkg/cmd/checkmanifests"
 	"github.com/spf13/cobra"
 	"k8s.io/component-base/cli"
 )
