@@ -17,6 +17,7 @@ ERROR: "NoBools": crd/schedulers.config.openshift.io version/v1 field/^.spec.new
 3. Easy to extend the ruleset, potentially by vendoring the tool and inserting into the command.
 4. Easy to select a ruleset, both defaults (if vendored out) and via the CLI.
 5. Easy to unit and CLI test.
+6. Probable goal: runtime check against all existing instances to locate failures
 
 
 ### What is a violation?
