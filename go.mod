@@ -1,4 +1,4 @@
-module github.com/openshift/crd-schema-compatibility-checker
+module github.com/openshift/crd-schema-checker
 
 go 1.19
 
