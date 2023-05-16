@@ -1,6 +1,6 @@
 package defaultcomparators
 
-import "github.com/openshift/crd-schema-compatibility-checker/pkg/manifestcomparators"
+import "github.com/openshift/crd-schema-checker/pkg/manifestcomparators"
 
 func must(err error) {
 	if err != nil {

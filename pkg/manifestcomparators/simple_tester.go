@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/openshift/crd-schema-compatibility-checker/pkg/resourceread"
+	"github.com/openshift/crd-schema-checker/pkg/resourceread"
 	"gopkg.in/yaml.v2"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )

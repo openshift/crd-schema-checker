@@ -6,9 +6,9 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"github.com/openshift/crd-schema-compatibility-checker/pkg/defaultcomparators"
-	"github.com/openshift/crd-schema-compatibility-checker/pkg/manifestcomparators"
-	"github.com/openshift/crd-schema-compatibility-checker/pkg/resourceread"
+	"github.com/openshift/crd-schema-checker/pkg/defaultcomparators"
+	"github.com/openshift/crd-schema-checker/pkg/manifestcomparators"
+	"github.com/openshift/crd-schema-checker/pkg/resourceread"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
