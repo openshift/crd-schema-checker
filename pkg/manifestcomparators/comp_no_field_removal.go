@@ -49,7 +49,7 @@ func (b noFieldRemoval) Compare(existingCRD, newCRD *apiextensionsv1.CustomResou
 		})
 
 		newFields := sets.NewString()
-		SchemaHas(newCRD.Spec.Versions[0].Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path) bool {
+		SchemaHas(newVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path) bool {
 			newFields.Insert(simpleLocation.String())
 			return false
 		})
