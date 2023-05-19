@@ -6,8 +6,7 @@ import (
 	"net/http"
 
 	"github.com/openshift/crd-schema-checker/pkg/cmd/options"
-
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -28,27 +27,19 @@ func (a *AdmissionHook) ValidatingResource() (plural schema.GroupVersionResource
 }
 
 // your business logic
-func (a *AdmissionHook) Validate(admissionSpec *admissionv1beta1.AdmissionRequest) *admissionv1beta1.AdmissionResponse {
-	if admissionSpec.Operation != admissionv1beta1.Create && admissionSpec.Operation != admissionv1beta1.Update {
-		return &admissionv1beta1.AdmissionResponse{Allowed: true}
+func (a *AdmissionHook) Validate(admissionSpec *admissionv1.AdmissionRequest) *admissionv1.AdmissionResponse {
+	if admissionSpec.Operation != admissionv1.Create && admissionSpec.Operation != admissionv1.Update {
+		return &admissionv1.AdmissionResponse{Allowed: true}
 	}
 	if len(admissionSpec.SubResource) > 0 {
-		return &admissionv1beta1.AdmissionResponse{Allowed: true}
+		return &admissionv1.AdmissionResponse{Allowed: true}
 
 	}
 	if !(admissionSpec.Resource.Group == apiextensionsv1.GroupName) {
-		return &admissionv1beta1.AdmissionResponse{Allowed: true}
+		return &admissionv1.AdmissionResponse{Allowed: true}
 
 	}
-	status := &admissionv1beta1.AdmissionResponse{}
-
-	if admissionSpec.Operation != admissionv1beta1.Create || len(admissionSpec.SubResource) != 0 ||
-		((admissionSpec.Resource.Group != "project.openshift.io" || admissionSpec.Resource.Resource != "projectrequests") &&
-			(admissionSpec.Resource.Group != "" || admissionSpec.Resource.Resource != "namespaces")) {
-
-		status.Allowed = true
-		return status
-	}
+	status := &admissionv1.AdmissionResponse{}
 
 	newCRD := &apiextensionsv1.CustomResourceDefinition{}
 	err := json.Unmarshal(admissionSpec.Object.Raw, newCRD)
