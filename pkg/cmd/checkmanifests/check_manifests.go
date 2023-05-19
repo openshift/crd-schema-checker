@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"os"
 
-	"k8s.io/apimachinery/pkg/util/sets"
-
 	"github.com/openshift/crd-schema-checker/pkg/defaultcomparators"
 	"github.com/openshift/crd-schema-checker/pkg/manifestcomparators"
 	"github.com/openshift/crd-schema-checker/pkg/resourceread"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/klog/v2"
 )
@@ -61,8 +61,9 @@ func NewCheckManifestsCommand() *cobra.Command {
 			if err != nil {
 				klog.Fatal(err)
 			}
-			if _, err := config.Run(); err != nil {
-				klog.Fatal(err)
+			if _, failed, _ := config.Run(); failed {
+				// errors are reported by .Run so we just need to exit non-zero
+				os.Exit(1)
 			}
 		},
 	}
@@ -143,16 +144,19 @@ type CheckManifestConfig struct {
 }
 
 // Run contains the logic of the render command.
-func (c *CheckManifestConfig) Run() ([]manifestcomparators.ComparisonResults, error) {
+func (c *CheckManifestConfig) Run() ([]manifestcomparators.ComparisonResults, bool, error) {
+	failed := false
 
 	comparisonResults, errs := c.ComparatorRegistry.Compare(c.ExistingCRD, c.NewCRD, c.ComparatorNames...)
 	if len(errs) > 0 {
+		failed = true
 		for _, err := range errs {
 			fmt.Fprintf(c.IOStreams.ErrOut, "Error during evalutions: %v\n", err)
 		}
 	}
 	for _, comparisonResult := range comparisonResults {
 		for _, msg := range comparisonResult.Errors {
+			failed = true
 			fmt.Fprintf(c.IOStreams.ErrOut, "ERROR: %q: %v\n", comparisonResult.Name, msg)
 		}
 	}
@@ -167,5 +171,5 @@ func (c *CheckManifestConfig) Run() ([]manifestcomparators.ComparisonResults, er
 		}
 	}
 
-	return comparisonResults, nil
+	return comparisonResults, failed, utilerrors.NewAggregate(errs)
 }
