@@ -3,8 +3,10 @@ package main
 import (
 	"os"
 
+	"github.com/openshift/crd-schema-checker/pkg/cmd/checkadmission"
 	"github.com/openshift/crd-schema-checker/pkg/cmd/checkmanifests"
 	"github.com/spf13/cobra"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/component-base/cli"
 )
 
@@ -30,7 +32,13 @@ func newCommand() *cobra.Command {
 	//	cmd.Version = v
 	//}
 
-	cmd.AddCommand(checkmanifests.NewCheckManifestsCommand())
+	streams := genericclioptions.IOStreams{
+		In:     os.Stdin,
+		Out:    os.Stdout,
+		ErrOut: os.Stderr,
+	}
+	cmd.AddCommand(checkmanifests.NewCheckManifestsCommand(streams))
+	cmd.AddCommand(checkadmission.NewCommandStartAdmissionServer(streams))
 
 	return cmd
 }
