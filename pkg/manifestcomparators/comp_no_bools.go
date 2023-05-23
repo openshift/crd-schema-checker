@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
@@ -25,29 +24,12 @@ func (noBools) WhyItMatters() string {
 		"pointers to booleans can be, but at that point you've already got a tri-state, so it's not a boolean is it..."
 }
 
-func (b noBools) Compare(existingCRD, newCRD *apiextensionsv1.CustomResourceDefinition) (ComparisonResults, error) {
+func (b noBools) Validate(crd *apiextensionsv1.CustomResourceDefinition) (ComparisonResults, error) {
 	errsToReport := []string{}
 
-	for _, newVersion := range newCRD.Spec.Versions {
-		existingBoolFieldsThatCannotBeRemoved := sets.NewString()
-
-		existingVersion := GetVersionByName(existingCRD, newVersion.Name)
-		if existingVersion != nil {
-
-			SchemaHas(existingVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path) bool {
-				if s.Type == "boolean" {
-					existingBoolFieldsThatCannotBeRemoved.Insert(simpleLocation.String())
-				}
-				return false
-			})
-		}
-
+	for _, newVersion := range crd.Spec.Versions {
 		newBoolFields := []string{}
-		SchemaHas(newCRD.Spec.Versions[0].Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path) bool {
-			// we cannot remove an existing boolean.
-			if existingBoolFieldsThatCannotBeRemoved.Has(simpleLocation.String()) {
-				return false
-			}
+		SchemaHas(crd.Spec.Versions[0].Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path) bool {
 			if s.Type == "boolean" {
 				newBoolFields = append(newBoolFields, simpleLocation.String())
 			}
@@ -55,7 +37,7 @@ func (b noBools) Compare(existingCRD, newCRD *apiextensionsv1.CustomResourceDefi
 		})
 
 		for _, newBoolField := range newBoolFields {
-			errsToReport = append(errsToReport, fmt.Sprintf("crd/%v version/%v field/%v may not be a boolean", newCRD.Name, newVersion.Name, newBoolField))
+			errsToReport = append(errsToReport, fmt.Sprintf("crd/%v version/%v field/%v may not be a boolean", crd.Name, newVersion.Name, newBoolField))
 		}
 
 	}
@@ -68,4 +50,8 @@ func (b noBools) Compare(existingCRD, newCRD *apiextensionsv1.CustomResourceDefi
 		Warnings: nil,
 		Infos:    nil,
 	}, nil
+}
+
+func (b noBools) Compare(existingCRD, newCRD *apiextensionsv1.CustomResourceDefinition) (ComparisonResults, error) {
+	return RatchetCompare(b, existingCRD, newCRD)
 }

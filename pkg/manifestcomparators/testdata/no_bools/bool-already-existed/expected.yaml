@@ -1,5 +1,5 @@
 items:
   - name: NoBools
     errors: []
-    warnings:
-    infos:
+    warnings: []
+    infos: []

@@ -17,6 +17,10 @@ type CRDComparator interface {
 	Compare(existingCRD, newCRD *apiextensionsv1.CustomResourceDefinition) (ComparisonResults, error)
 }
 
+type SingleCRDValidator interface {
+	Validate(crd *apiextensionsv1.CustomResourceDefinition) (ComparisonResults, error)
+}
+
 type CRDComparatorRegistry interface {
 	AddComparator(comparator CRDComparator) error
 	GetComparator(name string) (CRDComparator, error)
