@@ -1,0 +1,7 @@
+items:
+  - name: NoMaps
+    errors:
+      - crd/thepluralresource.api.example.com version/v1 field/^.spec.badField may not be a map
+    warnings: []
+    infos: []
+    
