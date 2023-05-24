@@ -12,6 +12,7 @@ func NewDefaultComparators() manifestcomparators.CRDComparatorRegistry {
 	ret := manifestcomparators.NewRegistry()
 	must(ret.AddComparator(manifestcomparators.NoBools()))
 	must(ret.AddComparator(manifestcomparators.NoFieldRemoval()))
+	must(ret.AddComparator(manifestcomparators.NoMaps()))
 
 	/*
 		other useful comparators
