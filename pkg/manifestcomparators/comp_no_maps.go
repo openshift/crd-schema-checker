@@ -29,7 +29,7 @@ func (b noMaps) Validate(crd *apiextensionsv1.CustomResourceDefinition) (Compari
 
 	for _, newVersion := range crd.Spec.Versions {
 		newMapFields := []string{}
-		SchemaHas(crd.Spec.Versions[0].Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path) bool {
+		SchemaHas(newVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path) bool {
 			if s.Type == "object" {
 				// I think this is how openapi v3 marks maps: https://swagger.io/docs/specification/data-models/dictionaries/
 				// "normal" objects appear to use properties, not additionalProperties.
