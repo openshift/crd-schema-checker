@@ -1,0 +1,7 @@
+items:
+  - name: MustHaveStatus
+    errors:
+      - crd/thepluralresource.api.example.com version/v2 field/^.status must have a status
+        subresource in .spec.version[name=v2].subresources.status to match its schema.
+    warnings: []
+    infos: []

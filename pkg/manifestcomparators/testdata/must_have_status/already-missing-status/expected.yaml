@@ -1,0 +1,5 @@
+items:
+  - name: MustHaveStatus
+    errors: []
+    warnings: []
+    infos: []

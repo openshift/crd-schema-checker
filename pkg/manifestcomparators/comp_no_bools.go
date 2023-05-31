@@ -29,7 +29,7 @@ func (b noBools) Validate(crd *apiextensionsv1.CustomResourceDefinition) (Compar
 
 	for _, newVersion := range crd.Spec.Versions {
 		newBoolFields := []string{}
-		SchemaHas(crd.Spec.Versions[0].Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path) bool {
+		SchemaHas(newVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path) bool {
 			if s.Type == "boolean" {
 				newBoolFields = append(newBoolFields, simpleLocation.String())
 			}
