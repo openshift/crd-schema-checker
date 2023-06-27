@@ -21,10 +21,10 @@ type AdmissionCheckOptions struct {
 
 func NewAdmissionCheckOptions(streams genericclioptions.IOStreams) *AdmissionCheckOptions {
 	o := &AdmissionCheckOptions{
-		AdmissionServerOptions: server.NewAdmissionServerOptions(streams.Out, streams.ErrOut),
-		ComparatorOptions:      options.NewComparatorOptions(),
-		admissionHook:          &admissionevaluator.AdmissionHook{},
+		ComparatorOptions: options.NewComparatorOptions(),
+		admissionHook:     &admissionevaluator.AdmissionHook{},
 	}
+	o.AdmissionServerOptions = server.NewAdmissionServerOptions(streams.Out, streams.ErrOut, o.admissionHook)
 
 	return o
 }
@@ -83,7 +83,7 @@ func (o *AdmissionCheckOptions) Validate(args []string) error {
 }
 
 func (o AdmissionCheckOptions) RunAdmissionServer(stopCh <-chan struct{}) error {
-	if err := o.RunAdmissionServer(stopCh); err != nil {
+	if err := o.AdmissionServerOptions.RunAdmissionServer(stopCh); err != nil {
 		return err
 	}
 

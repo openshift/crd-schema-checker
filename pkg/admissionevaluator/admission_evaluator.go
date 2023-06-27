@@ -33,12 +33,11 @@ func (a *AdmissionHook) Validate(admissionSpec *admissionv1.AdmissionRequest) *a
 	}
 	if len(admissionSpec.SubResource) > 0 {
 		return &admissionv1.AdmissionResponse{Allowed: true}
-
 	}
 	if !(admissionSpec.Resource.Group == apiextensionsv1.GroupName) {
 		return &admissionv1.AdmissionResponse{Allowed: true}
-
 	}
+
 	status := &admissionv1.AdmissionResponse{}
 
 	newCRD := &apiextensionsv1.CustomResourceDefinition{}
@@ -47,19 +46,19 @@ func (a *AdmissionHook) Validate(admissionSpec *admissionv1.AdmissionRequest) *a
 		status.Allowed = false
 		status.Result = &metav1.Status{
 			Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,
-			Message: err.Error(),
+			Message: fmt.Sprintf("failed to unmarshal newCRD: %v", err.Error()),
 		}
 		return status
 	}
 
-	var existingCRD *apiextensionsv1.CustomResourceDefinition
+	existingCRD := &apiextensionsv1.CustomResourceDefinition{}
 	if len(admissionSpec.OldObject.Raw) > 0 {
 		err := json.Unmarshal(admissionSpec.OldObject.Raw, existingCRD)
 		if err != nil {
 			status.Allowed = false
 			status.Result = &metav1.Status{
 				Status: metav1.StatusFailure, Code: http.StatusBadRequest, Reason: metav1.StatusReasonBadRequest,
-				Message: err.Error(),
+				Message: fmt.Sprintf("failed to unmarshal oldCRD: %v", err.Error()),
 			}
 			return status
 		}
@@ -89,8 +88,8 @@ func (a *AdmissionHook) Validate(admissionSpec *admissionv1.AdmissionRequest) *a
 			status.Allowed = false
 			errorCauses = append(errorCauses,
 				metav1.StatusCause{
-					Type:    "ValidationError",
-					Message: fmt.Sprintf("%q: %v", comparisonResult.Name, msg),
+					Type:    metav1.CauseType(comparisonResult.Name),
+					Message: msg,
 				})
 		}
 	}
