@@ -31,3 +31,7 @@ func ReadCustomResourceDefinitionV1OrDie(objBytes []byte) *apiextensionsv1.Custo
 	}
 	return requiredObj.(*apiextensionsv1.CustomResourceDefinition)
 }
+
+func WriteCustomResourceDefinitionV1OrDie(obj *apiextensionsv1.CustomResourceDefinition) string {
+	return runtime.EncodeOrDie(apiExtensionsCodecs.LegacyCodec(apiextensionsv1.SchemeGroupVersion), obj)
+}

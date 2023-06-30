@@ -1,0 +1,173 @@
+package checkadmission
+
+import (
+	"encoding/json"
+	"fmt"
+	"net"
+	"os"
+	"path"
+	"testing"
+	"time"
+
+	"k8s.io/apiserver/pkg/features"
+	"k8s.io/apiserver/pkg/util/feature"
+
+	"github.com/openshift/crd-schema-checker/pkg/manifestcomparators"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api/v1"
+	"k8s.io/klog/v2"
+)
+
+func TestAdmissionServer(t *testing.T) {
+	testIOStreams, _, out, errOut := genericclioptions.NewTestIOStreams()
+
+	tmpDir, err := os.MkdirTemp("", "kubernetes-kube-apiserver")
+	if err != nil {
+		t.Fatal(fmt.Errorf("failed to create temp dir: %v", err))
+	}
+
+	kubeconfig := clientcmdapi.Config{
+		Kind:       "Config",
+		APIVersion: "v1",
+		Clusters: []clientcmdapi.NamedCluster{
+			{
+				Name: "dead",
+				Cluster: clientcmdapi.Cluster{
+					Server:                "localhost",
+					InsecureSkipTLSVerify: true,
+				},
+			},
+		},
+		AuthInfos: []clientcmdapi.NamedAuthInfo{
+			{
+				Name: "dead",
+				AuthInfo: clientcmdapi.AuthInfo{
+					Token: "dead",
+				},
+			},
+		},
+		Contexts: []clientcmdapi.NamedContext{
+			{
+				Name: "dead",
+				Context: clientcmdapi.Context{
+					Cluster:   "dead",
+					AuthInfo:  "dead",
+					Namespace: "dead",
+				},
+			},
+		},
+		CurrentContext: "dead",
+		Extensions:     nil,
+	}
+	yamlBytes, err := json.Marshal(kubeconfig)
+	if err != nil {
+		t.Fatal(fmt.Errorf("failed to create kubeconfig: %v", err))
+	}
+	fakeCoreKubeconfig := path.Join(tmpDir, "kubeconfig")
+	os.WriteFile(fakeCoreKubeconfig, yamlBytes, 0644)
+	if err != nil {
+		t.Fatal(fmt.Errorf("failed to write kubeconfig: %v", err))
+	}
+
+	stopCh := make(chan struct{})
+	var errCh chan error
+	tearDown := func() {
+		// Closing stopCh is stopping apiserver and cleaning up
+		// after itself, including shutting down its storage layer.
+		close(stopCh)
+
+		// If the apiserver was started, let's wait for it to  shutdown clearly.
+		if errCh != nil {
+			err, ok := <-errCh
+			if ok && err != nil {
+				klog.Errorf("Failed to shutdown test server clearly: %v", err)
+			}
+		}
+		t.Log(out.String())
+		t.Log(errOut.String())
+
+		os.RemoveAll(tmpDir)
+	}
+	defer func() {
+		tearDown()
+	}()
+
+	feature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%v=false", features.APIPriorityAndFairness))
+	admissionServerOptions := NewAdmissionCheckOptions(testIOStreams)
+	admissionServerOptions.AdmissionServerOptions.RecommendedOptions.SecureServing.Listener,
+		admissionServerOptions.AdmissionServerOptions.RecommendedOptions.SecureServing.BindPort,
+		err = createLocalhostListenerOnFreePort()
+	if err != nil {
+		t.Fatal(fmt.Errorf("failed to create listener: %v", err))
+	}
+	admissionServerOptions.AdmissionServerOptions.RecommendedOptions.SecureServing.ServerCert.CertDirectory = tmpDir
+	admissionServerOptions.AdmissionServerOptions.RecommendedOptions.Authentication = nil
+	admissionServerOptions.AdmissionServerOptions.RecommendedOptions.Authorization = nil
+	admissionServerOptions.AdmissionServerOptions.RecommendedOptions.Admission = nil
+	admissionServerOptions.AdmissionServerOptions.RecommendedOptions.CoreAPI.CoreAPIKubeconfigPath = fakeCoreKubeconfig
+
+	if err := admissionServerOptions.Complete(); err != nil {
+		t.Fatal(err)
+	}
+	if err := admissionServerOptions.Validate([]string{}); err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		if err := admissionServerOptions.RunAdmissionServer(stopCh); err != nil {
+			errCh <- err
+		}
+	}()
+
+	restConfig := &rest.Config{
+		Host:          net.JoinHostPort("localhost", fmt.Sprintf("%d", admissionServerOptions.AdmissionServerOptions.RecommendedOptions.SecureServing.BindPort)),
+		ContentConfig: rest.ContentConfig{},
+		TLSClientConfig: rest.TLSClientConfig{
+			Insecure: true,
+		},
+		QPS:     1000,
+		Burst:   10000,
+		Timeout: 10 * time.Second,
+		Dial:    nil,
+		Proxy:   nil,
+	}
+	kubeClient, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests, err := manifestcomparators.AllTestsInDir("../../manifestcomparators/testdata")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	admissionTests := []*admissionComparatorTest{}
+	for i := range tests {
+		admissionTests = append(admissionTests, &admissionComparatorTest{
+			restClient:     kubeClient.RESTClient(),
+			ComparatorTest: tests[i],
+		})
+	}
+
+	for _, test := range admissionTests {
+		t.Run(test.ComparatorTest.Name, test.Test)
+	}
+}
+
+func createLocalhostListenerOnFreePort() (net.Listener, int, error) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// get port
+	tcpAddr, ok := ln.Addr().(*net.TCPAddr)
+	if !ok {
+		ln.Close()
+		return nil, 0, fmt.Errorf("invalid listen address: %q", ln.Addr().String())
+	}
+
+	return ln, tcpAddr.Port, nil
+}
