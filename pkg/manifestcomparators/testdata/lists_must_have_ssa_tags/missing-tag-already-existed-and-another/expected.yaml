@@ -1,0 +1,6 @@
+items:
+  - name: ListsMustHaveSSATags
+    errors:
+      - crd/thepluralresource.api.example.com version/v1 field/^.spec.newBadList must set x-kubernetes-list-type
+    warnings: []
+    infos: []
