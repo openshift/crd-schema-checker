@@ -1,0 +1,5 @@
+items:
+  - name: ListsMustHaveSSATags
+    errors: []
+    warnings: []
+    infos: []
