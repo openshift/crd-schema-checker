@@ -60,7 +60,7 @@ func NewCommandStartAdmissionServer(streams genericclioptions.IOStreams) *cobra.
 }
 
 func (o *AdmissionCheckOptions) AddFlags(fs *pflag.FlagSet) {
-	o.AdmissionServerOptions.RecommendedOptions.AddFlags(fs)
+	o.AdmissionServerOptions.AddFlags(fs)
 	o.ComparatorOptions.AddFlags(fs)
 }
 
