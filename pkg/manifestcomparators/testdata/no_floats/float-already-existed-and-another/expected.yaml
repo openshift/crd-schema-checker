@@ -1,0 +1,7 @@
+items:
+  - name: NoFloats
+    errors:
+    - crd/schedulers.config.openshift.io version/v1 field/^.spec.newFloat may not be a
+      float
+    warnings: []
+    infos: []
