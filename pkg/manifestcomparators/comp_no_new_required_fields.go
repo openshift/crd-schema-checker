@@ -45,11 +45,11 @@ func (b noNewRequiredFields) Compare(existingCRD, newCRD *apiextensionsv1.Custom
 		}
 
 		existingRequiredFields := map[string]sets.String{}
-		existingToSimpleLocation := map[*apiextensionsv1.JSONSchemaProps]*field.Path{}
+		existingSimpleLocationToJSONSchemaProps := map[string]*apiextensionsv1.JSONSchemaProps{}
 		SchemaHas(existingVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), nil,
 			func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path, _ []*apiextensionsv1.JSONSchemaProps) bool {
 				existingRequiredFields[simpleLocation.String()] = sets.NewString(s.Required...)
-				existingToSimpleLocation[s] = simpleLocation
+				existingSimpleLocationToJSONSchemaProps[simpleLocation.String()] = s
 				return false
 			})
 
@@ -72,7 +72,7 @@ func (b noNewRequiredFields) Compare(existingCRD, newCRD *apiextensionsv1.Custom
 						return false
 					}
 					// this means we're an array with a minLength, check to see if any parent wrapper is both new and optional.
-					if isAnyAncestorNewAndNullable(ancestors, existingToSimpleLocation, newToSimpleLocation, newSimpleLocationToRequiredFields) {
+					if isAnyAncestorNewAndNullable(ancestors, existingSimpleLocationToJSONSchemaProps, newToSimpleLocation, newSimpleLocationToRequiredFields) {
 						return false
 					}
 
@@ -95,7 +95,7 @@ func (b noNewRequiredFields) Compare(existingCRD, newCRD *apiextensionsv1.Custom
 					return false
 				}
 
-				if isAnyAncestorNewAndNullable(ancestors, existingToSimpleLocation, newToSimpleLocation, newSimpleLocationToRequiredFields) {
+				if isAnyAncestorNewAndNullable(ancestors, existingSimpleLocationToJSONSchemaProps, newToSimpleLocation, newSimpleLocationToRequiredFields) {
 					// if any ancestor of the parent of the required field is new and nullable, then required is allowed.
 					return false
 				}
@@ -130,19 +130,21 @@ func (b noNewRequiredFields) Compare(existingCRD, newCRD *apiextensionsv1.Custom
 
 func isAnyAncestorNewAndNullable(
 	ancestors []*apiextensionsv1.JSONSchemaProps,
-	existingToSimpleLocation map[*apiextensionsv1.JSONSchemaProps]*field.Path,
+	existingSimpleLocationToJSONSchemaProps map[string]*apiextensionsv1.JSONSchemaProps,
 	newToSimpleLocation map[*apiextensionsv1.JSONSchemaProps]*field.Path,
 	newSimpleLocationToRequiredFields map[string]sets.String) bool {
 
 	for i := len(ancestors) - 1; i >= 0; i-- {
 		ancestor := ancestors[i]
+		ancestorSimpleName := newToSimpleLocation[ancestor]
 		isOptionalArray := ancestor.Type == "array" && (ancestor.MinLength == nil || *ancestor.MinLength == 0)
 		isAncestoryOptional := ancestor.Nullable || isOptionalArray
 		if !isAncestoryOptional {
 			// if this ancestor isn't nullable, then it cannot allow the current element to be required
 			continue
 		}
-		if _, existed := existingToSimpleLocation[ancestor]; existed {
+
+		if _, existed := existingSimpleLocationToJSONSchemaProps[ancestorSimpleName.String()]; existed {
 			// if this ancestor previously existed, then it cannot allow the current element to be required
 			continue
 		}
@@ -153,8 +155,7 @@ func isAnyAncestorNewAndNullable(
 
 		// does the current ancestor require
 		parentOfAncestor := ancestors[i-1]
-		ancestorLocation := newToSimpleLocation[ancestor]
-		tokens := strings.Split(ancestorLocation.String(), ".")
+		tokens := strings.Split(ancestorSimpleName.String(), ".")
 		lastStep := tokens[len(tokens)-1]
 		prevAncestorRequiredFields := newSimpleLocationToRequiredFields[newToSimpleLocation[parentOfAncestor].String()]
 		if !prevAncestorRequiredFields.Has(lastStep) {
