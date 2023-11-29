@@ -91,8 +91,22 @@ func (tc *admissionComparatorTest) Test(t *testing.T) {
 	actualErrors := []error{}
 	comparatorNameToResults := map[string]manifestcomparators.ComparisonResults{}
 
+	if actual.Response.UID != admissionReview.Request.UID {
+		t.Fatalf("mismatch of UID: sent %v, got %v", admissionReview.Request.UID, actual.Response.UID)
+	}
+
+	t.Logf("request.allowed == %v", actual.Response.Allowed)
+	if !actual.Response.Allowed {
+		responseJSON, err := json.MarshalIndent(actual.Response, "", "    ")
+		if err != nil {
+			t.Log(err)
+		}
+		t.Log(string(responseJSON))
+	}
+
 	if actual.Response.Result != nil && actual.Response.Result.Details != nil {
 		for _, cause := range actual.Response.Result.Details.Causes {
+			t.Log(cause.Message)
 			name := string(cause.Type)
 			if name == "EvaluationError" {
 				actualErrors = append(actualErrors, fmt.Errorf(cause.Message))
@@ -103,9 +117,19 @@ func (tc *admissionComparatorTest) Test(t *testing.T) {
 			results.Errors = append(results.Errors, cause.Message)
 			comparatorNameToResults[name] = results
 		}
+	} else {
+		switch {
+		case actual.Response.Result == nil:
+			t.Logf("got no response.result")
+		case actual.Response.Result.Details == nil:
+			t.Logf("got no response.result.details, but result: %v", actual.Response.Result)
+		}
+
 	}
 
+	t.Logf("got %d warnings", len(actual.Response.Warnings))
 	for _, warning := range actual.Response.Warnings {
+		t.Log(warning)
 		if strings.HasPrefix(warning, "fyi: ") {
 			parts := strings.SplitN(warning, ":", 3)
 			name := parts[1]

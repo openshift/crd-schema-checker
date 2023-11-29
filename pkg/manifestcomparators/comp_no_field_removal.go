@@ -43,16 +43,18 @@ func (b noFieldRemoval) Compare(existingCRD, newCRD *apiextensionsv1.CustomResou
 		}
 
 		existingFields := sets.NewString()
-		SchemaHas(existingVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path) bool {
-			existingFields.Insert(simpleLocation.String())
-			return false
-		})
+		SchemaHas(existingVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), nil,
+			func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path, _ []*apiextensionsv1.JSONSchemaProps) bool {
+				existingFields.Insert(simpleLocation.String())
+				return false
+			})
 
 		newFields := sets.NewString()
-		SchemaHas(newVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path) bool {
-			newFields.Insert(simpleLocation.String())
-			return false
-		})
+		SchemaHas(newVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), nil,
+			func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path, _ []*apiextensionsv1.JSONSchemaProps) bool {
+				newFields.Insert(simpleLocation.String())
+				return false
+			})
 
 		removedFields := existingFields.Difference(newFields)
 		for _, removedField := range removedFields.List() {

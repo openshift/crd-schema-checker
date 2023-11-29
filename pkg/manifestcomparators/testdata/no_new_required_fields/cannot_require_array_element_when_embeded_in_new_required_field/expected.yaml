@@ -1,0 +1,9 @@
+items:
+  - name: NoNewRequiredFields
+    errors:
+    - crd/thepluralresource.api.example.com version/v1 field/^.spec.parent is new and
+      may not be required
+    - crd/thepluralresource.api.example.com version/v1 field/^.spec.parent.badList is
+      new and may not be required
+    warnings:
+    infos:
