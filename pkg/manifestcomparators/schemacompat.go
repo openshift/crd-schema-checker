@@ -1,5 +1,6 @@
 /*
 Copyright 2021 The KCP Authors.
+Modifications Copyright 2023 the OpenShift Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,15 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package schemacompat
+package manifestcomparators
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 
-	"go.uber.org/multierr"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -31,53 +31,61 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
-// EnsureStructuralSchemaCompatibility compares a new structural schema to an existing one, to ensure that the existing
-// schema is a sub-schema of the new schema. In other words that means that all the documents validated by the existing schema
-// will also be validated by the new schema, so that the new schema can be considered backward-compatible with the existing schema.
-// If it's not the case, errors are reported for each incompatible schema change.
-//
-// PLEASE NOTE that the implementation is incomplete (it's ongoing work), but still consistent:
-// if some Json Schema elements are changed and the comparison of this type of element is not yet implemented,
-// then an incompatible change error is triggered explaining that the comparison on this element type is not supported.
-// So there should never be any case when a schema is considered backward-compatible while in fact it is not.
-//
-// If the narrowExisting argument is true, then the LCD (Lowest-Common-Denominator) between existing schema and the new schema
-// is built (when possible), and returned if no incompatible change was detected (like type change, etc...).
-// If the narrowExisting argument is false, the existing schema is untouched and no LCD schema is calculated.
-//
-// In either case, when no errors are reported, it is ensured that either the existing schema or the calculated LCD
-// is a sub-schema of the new schema.
-func EnsureStructuralSchemaCompatibility(fldPath *field.Path, existing, new *apiextensionsv1.JSONSchemaProps, narrowExisting bool) (*apiextensionsv1.JSONSchemaProps, error) {
+// ValidateJSONSchemaCompatibility compares existing and new revisions of a JSON schema, making sure there are no
+// backwards-incompatible changes. Some checks may not have been implemented yet; for these cases, an error is returned
+// rather than allowing a potential incompatible change to go through undetected.
+func ValidateJSONSchemaCompatibility(fldPath *field.Path, existing, new *apiextensionsv1.JSONSchemaProps) error {
 	var newInternal, existingInternal apiextensions.JSONSchemaProps
 	if err := apiextensionsv1.Convert_v1_JSONSchemaProps_To_apiextensions_JSONSchemaProps(existing, &existingInternal, nil); err != nil {
-		return nil, err
+		return err
 	}
 	if err := apiextensionsv1.Convert_v1_JSONSchemaProps_To_apiextensions_JSONSchemaProps(new, &newInternal, nil); err != nil {
-		return nil, err
+		return err
 	}
-	newStrucural, err := schema.NewStructural(&newInternal)
+	newStructural, err := schema.NewStructural(&newInternal)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	existingStructural, err := schema.NewStructural(&existingInternal)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	lcdStructural := existingStructural.DeepCopy()
-	if err := lcdForStructural(fldPath, existingStructural, newStrucural, lcdStructural, narrowExisting); err != nil {
-		return nil, err
+	return validateStructuralSchemaCompatibility(fldPath, existingStructural, newStructural)
+}
+
+func validateStructuralSchemaCompatibility(fldPath *field.Path, existing, new *schema.Structural) error {
+	if new == nil {
+		return field.Invalid(fldPath, nil, "new schema doesn't allow anything")
 	}
-	serialized, err := json.Marshal(lcdStructural.ToKubeOpenAPI())
-	if err != nil {
-		return nil, err
+	if was, now := existing.XPreserveUnknownFields, new.XPreserveUnknownFields; was != now {
+		return field.Invalid(fldPath.Child("x-kubernetes-preserve-unknown-fields"), new.XPreserveUnknownFields, fmt.Sprintf("x-kubernetes-preserve-unknown-fields value changed (was %t, now %t)", was, now))
 	}
-	var jsonSchemaProps apiextensionsv1.JSONSchemaProps
-	if err := json.Unmarshal(serialized, &jsonSchemaProps); err != nil {
-		return nil, err
+
+	switch existing.Type {
+	case "number":
+		return validateNumberCompatibility(fldPath, existing, new)
+	case "integer":
+		return validateIntegerCompatibility(fldPath, existing, new)
+	case "string":
+		return validateStringCompatibility(fldPath, existing, new)
+	case "boolean":
+		return validateBooleanCompatibility(fldPath, existing, new)
+	case "array":
+		return validateArrayCompatibility(fldPath, existing, new)
+	case "object":
+		return validateObjectCompatibility(fldPath, existing, new)
+	case "":
+		if existing.XIntOrString {
+			return validateIntOrStringCompatibility(fldPath, existing, new)
+		}
+		if existing.XPreserveUnknownFields {
+			return validatePreserveUnknownFieldsCompatibility(fldPath, existing, new)
+		}
 	}
-	return &jsonSchemaProps, nil
+
+	return field.Invalid(fldPath.Child("type"), existing.Type, "invalid/unsupported type")
 }
 
 func checkTypesAreTheSame(fldPath *field.Path, existing, new *schema.Structural) error {
@@ -87,9 +95,9 @@ func checkTypesAreTheSame(fldPath *field.Path, existing, new *schema.Structural)
 	return nil
 }
 
-func checkUnsupportedValidation(fldPath *field.Path, existing, new interface{}, validationName, typeName string) error {
+func errorIfPresent(fldPath *field.Path, existing, new interface{}, validationName, typeName string) error {
 	if !reflect.ValueOf(existing).IsZero() || !reflect.ValueOf(new).IsZero() {
-		return field.Forbidden(fldPath, fmt.Sprintf("The %q JSON Schema construct is not supported by the Schema negotiation for type %q", validationName, typeName))
+		return field.Forbidden(fldPath, fmt.Sprintf("%q does not support %q", typeName, validationName))
 	}
 	return nil
 }
@@ -124,309 +132,352 @@ func stringPointersEqual(p1, p2 *string) bool {
 	return false
 }
 
-func checkUnsupportedValidationForNumerics(fldPath *field.Path, existing, new *schema.ValueValidation, typeName string) error {
-	err := multierr.Combine(
-		checkUnsupportedValidation(fldPath, existing.Not, new.Not, "not", typeName),
-		checkUnsupportedValidation(fldPath, existing.AllOf, new.AllOf, "allOf", typeName),
-		checkUnsupportedValidation(fldPath, existing.AnyOf, new.AnyOf, "anyOf", typeName),
-		checkUnsupportedValidation(fldPath, existing.OneOf, new.OneOf, "oneOf", typeName),
-		checkUnsupportedValidation(fldPath, existing.Enum, new.Enum, "enum", typeName))
-	if !floatPointersEqual(new.Maximum, existing.Maximum) ||
-		!floatPointersEqual(new.Minimum, existing.Minimum) ||
-		new.ExclusiveMaximum != existing.ExclusiveMaximum ||
-		new.ExclusiveMinimum != existing.ExclusiveMinimum {
-		err = multierr.Combine(
-			err,
-			checkUnsupportedValidation(fldPath, existing.Maximum, new.Maximum, "maximum", typeName),
-			checkUnsupportedValidation(fldPath, existing.Minimum, new.Minimum, "minimum", typeName))
-	}
-	if !floatPointersEqual(new.MultipleOf, existing.MultipleOf) {
-		multierr.AppendInto(&err, checkUnsupportedValidation(fldPath, existing.MultipleOf, new.MultipleOf, "multipleOf", typeName))
-	}
-	return err
-}
-
-func lcdForStructural(fldPath *field.Path, existing, new *schema.Structural, lcd *schema.Structural, narrowExisting bool) error {
-	if lcd == nil && narrowExisting {
-		return field.InternalError(fldPath, errors.New("lcd argument should be passed when narrowExisting is true"))
-	}
-	if new == nil {
-		return field.Invalid(fldPath, nil, "new schema doesn't allow anything")
-	}
-	if was, now := existing.XPreserveUnknownFields, new.XPreserveUnknownFields; was != now {
-		return field.Invalid(fldPath.Child("x-kubernetes-preserve-unknown-fields"), new.XPreserveUnknownFields, fmt.Sprintf("x-kubernetes-preserve-unknown-fields value changed (was %t, now %t)", was, now))
-	}
-
-	switch existing.Type {
-	case "number":
-		return lcdForNumber(fldPath, existing, new, lcd, narrowExisting)
-	case "integer":
-		return lcdForInteger(fldPath, existing, new, lcd, narrowExisting)
-	case "string":
-		return lcdForString(fldPath, existing, new, lcd, narrowExisting)
-	case "boolean":
-		return lcdForBoolean(fldPath, existing, new, lcd, narrowExisting)
-	case "array":
-		return lcdForArray(fldPath, existing, new, lcd, narrowExisting)
-	case "object":
-		return lcdForObject(fldPath, existing, new, lcd, narrowExisting)
-	case "":
-		if existing.XIntOrString {
-			return lcdForIntOrString(fldPath, existing, new, lcd, narrowExisting)
-		} else if existing.XPreserveUnknownFields {
-			return lcdForPreserveUnknownFields(fldPath, existing, new, lcd, narrowExisting)
+func validateEnum(fldPath *field.Path, existing, new []schema.JSON) error {
+	var existingValues sets.Set[string]
+	for _, v := range existing {
+		raw, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Errorf("error marshaling existing enum value '%v' to JSON: %w", v, err)
 		}
+		existingValues.Insert(string(raw))
 	}
-	return field.Invalid(field.NewPath(fldPath.String(), "type"), existing.Type, "Invalid type")
-}
 
-func lcdForIntegerValidation(fldPath *field.Path, existing, new *schema.ValueValidation, lcd *schema.ValueValidation, narrowExisting bool) error {
-	return checkUnsupportedValidationForNumerics(fldPath, existing, new, "integer")
-}
-
-func lcdForNumberValidation(fldPath *field.Path, existing, new *schema.ValueValidation, lcd *schema.ValueValidation, narrowExisting bool) error {
-	return checkUnsupportedValidationForNumerics(fldPath, existing, new, "numbers")
-}
-
-func lcdForNumber(fldPath *field.Path, existing, new *schema.Structural, lcd *schema.Structural, narrowExisting bool) error {
-	if new.Type == "integer" {
-		// new type is a subset of the existing type.
-		if !narrowExisting {
-			return checkTypesAreTheSame(fldPath, existing, new)
+	var newValues sets.Set[string]
+	for _, v := range new {
+		raw, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Errorf("error marshaling new enum value '%v' to JSON: %w", v, err)
 		}
-		lcd.Type = new.Type
-		return lcdForIntegerValidation(fldPath, existing.ValueValidation, new.ValueValidation, lcd.ValueValidation, narrowExisting)
+		newValues.Insert(string(raw))
 	}
 
+	if !newValues.IsSuperset(existingValues) {
+		return field.Invalid(fldPath, "TODO", "TODO enum value that was previously valid is no longer in the list")
+	}
+
+	return nil
+}
+
+func validateMultipleOf(fldPath *field.Path, existing, new *float64) error {
+	// Unset on both
+	if existing == nil && new == nil {
+		return nil
+	}
+
+	// Unset on new; less restrictive
+	if existing != nil && new == nil {
+		return nil
+	}
+
+	// Only set on new; more restrictive
+	if existing == nil && new != nil {
+		return field.Invalid(fldPath, "TODO", "TODO more restrictive; might invalidate some existing data")
+	}
+
+	// TODO maybe allow decreasing the multiple to a factor
+	if *existing != *new {
+		return field.Invalid(fldPath, "TODO", "TODO can't change multiple value")
+	}
+
+	return nil
+}
+
+func validateMinimum(fldPath *field.Path, existing *float64, existingExclusive bool, new *float64, newExclusive bool) error {
+	// Unset on both
+	if existing == nil && new == nil {
+		return nil
+	}
+
+	// Unset on new; less restrictive
+	if existing != nil && new == nil {
+		return nil
+	}
+
+	// Only set on new; more restrictive
+	if existing == nil && new != nil {
+		return field.Invalid(fldPath, "TODO", "TODO more restrictive; might invalidate some existing data")
+	}
+
+	// New lower min is ok
+	if *new < *existing {
+		return nil
+	}
+
+	if *new != *existing {
+		return field.Invalid(fldPath, "TODO", "TODO more restrictive; might invalidate some existing data")
+	}
+
+	if !existingExclusive && newExclusive {
+		return field.Invalid(fldPath, "TODO", "TODO more restrictive; might invalidate some existing data")
+	}
+
+	return nil
+}
+
+func validateMaximum(fldPath *field.Path, existing *float64, existingExclusive bool, new *float64, newExclusive bool) error {
+	// Unset on both
+	if existing == nil && new == nil {
+		return nil
+	}
+
+	// Unset on new; less restrictive
+	if existing != nil && new == nil {
+		return nil
+	}
+
+	// Only set on new; more restrictive
+	if existing == nil && new != nil {
+		return field.Invalid(fldPath, "TODO", "TODO more restrictive; might invalidate some existing data")
+	}
+
+	// New higher max is ok
+	if *new > *existing {
+		return nil
+	}
+
+	if *new != *existing {
+		return field.Invalid(fldPath, "TODO", "TODO more restrictive; might invalidate some existing data")
+	}
+
+	if !existingExclusive && newExclusive {
+		return field.Invalid(fldPath, "TODO", "TODO more restrictive; might invalidate some existing data")
+	}
+
+	return nil
+}
+
+func validateNumberValueValidationCompatibility(fldPath *field.Path, existing, new *schema.ValueValidation, typeName string) error {
+	var errors []error
+
+	errors = append(errors,
+		errorIfPresent(fldPath, existing.AllOf, new.AllOf, "allOf", typeName),
+		errorIfPresent(fldPath, existing.AnyOf, new.AnyOf, "anyOf", typeName),
+		errorIfPresent(fldPath, existing.OneOf, new.OneOf, "oneOf", typeName),
+		errorIfPresent(fldPath, existing.Not, new.Not, "not", typeName),
+		validateEnum(fldPath.Child("enum"), existing.Enum, new.Enum),
+		validateMultipleOf(fldPath.Child("multipleOf"), existing.MultipleOf, new.MultipleOf),
+		validateMinimum(fldPath.Child("minimum"), existing.Minimum, existing.ExclusiveMinimum, new.Minimum, new.ExclusiveMinimum),
+		validateMinimum(fldPath.Child("maximum"), existing.Maximum, existing.ExclusiveMaximum, new.Maximum, new.ExclusiveMaximum),
+	)
+
+	return utilerrors.NewAggregate(errors)
+}
+
+func validateNumberCompatibility(fldPath *field.Path, existing, new *schema.Structural) error {
 	if err := checkTypesAreTheSame(fldPath, existing, new); err != nil {
 		return err
 	}
 
-	return lcdForNumberValidation(fldPath, existing.ValueValidation, new.ValueValidation, lcd.ValueValidation, narrowExisting)
+	return validateNumberValueValidationCompatibility(fldPath, existing.ValueValidation, new.ValueValidation, "number")
 }
 
-func lcdForInteger(fldPath *field.Path, existing, new *schema.Structural, lcd *schema.Structural, narrowExisting bool) error {
+func validateIntegerCompatibility(fldPath *field.Path, existing, new *schema.Structural) error {
 	if new.Type == "number" {
 		// new type is a superset of the existing type.
-		// all is well type-wise
-		// keep the existing type (integer) in the LCD
-	} else {
-		if err := checkTypesAreTheSame(fldPath, existing, new); err != nil {
-			return err
-		}
+	} else if err := checkTypesAreTheSame(fldPath, existing, new); err != nil {
+		return err
 	}
-	return lcdForIntegerValidation(fldPath, existing.ValueValidation, new.ValueValidation, lcd.ValueValidation, narrowExisting)
+
+	return validateNumberValueValidationCompatibility(fldPath, existing.ValueValidation, new.ValueValidation, "integer")
 }
 
-func lcdForStringValidation(fldPath *field.Path, existing, new, lcd *schema.ValueValidation, narrowExisting bool) error {
-	err := multierr.Combine(
-		checkUnsupportedValidation(fldPath, existing.AllOf, new.AllOf, "allOf", "string"),
-		checkUnsupportedValidation(fldPath, existing.AllOf, new.AllOf, "anytOf", "string"),
-		checkUnsupportedValidation(fldPath, existing.AllOf, new.AllOf, "oneOf", "string"))
-	if !intPointersEqual(new.MaxLength, existing.MaxLength) ||
-		!intPointersEqual(new.MinLength, existing.MinLength) {
-		err = multierr.Combine(
-			err,
-			checkUnsupportedValidation(fldPath, existing.MaxLength, new.MaxLength, "maxLength", "string"),
-			checkUnsupportedValidation(fldPath, existing.MinLength, new.MinLength, "minLength", "string"))
+func validateStringValueValidationCompatibility(fldPath *field.Path, existing, new *schema.ValueValidation) error {
+	var errors []error
+	errors = append(errors, errorIfPresent(fldPath, existing.AllOf, new.AllOf, "allOf", "string"))
+
+	if !intPointersEqual(new.MaxLength, existing.MaxLength) || !intPointersEqual(new.MinLength, existing.MinLength) {
+		errors = append(errors,
+			errorIfPresent(fldPath, existing.MaxLength, new.MaxLength, "maxLength", "string"),
+			errorIfPresent(fldPath, existing.MinLength, new.MinLength, "minLength", "string"),
+		)
 	}
+
 	if new.Pattern != existing.Pattern {
-		multierr.AppendInto(&err, checkUnsupportedValidation(fldPath, existing.Pattern, new.Pattern, "pattern", "string"))
+		errors = append(errors, errorIfPresent(fldPath, existing.Pattern, new.Pattern, "pattern", "string"))
 	}
+
 	toEnumSets := func(enum []schema.JSON) sets.Set[string] {
 		enumSet := sets.New[string]()
 		for _, val := range enum {
 			strVal, isString := val.Object.(string)
 			if !isString {
-				multierr.AppendInto(&err, field.Invalid(fldPath.Child("enum"), enum, "enum value should be a 'string' for Json type 'string'"))
+				errors = append(errors, field.Invalid(fldPath.Child("enum"), enum, fmt.Sprintf("enum value \"%v\" must be a string", val.Object)))
 				continue
 			}
 			enumSet.Insert(strVal)
 		}
 		return enumSet
 	}
+
 	existingEnumValues := toEnumSets(existing.Enum)
 	newEnumValues := toEnumSets(new.Enum)
+
 	if !newEnumValues.IsSuperset(existingEnumValues) {
-		if !narrowExisting {
-			multierr.AppendInto(&err, field.Invalid(fldPath.Child("enum"), sets.List[string](newEnumValues.Difference(existingEnumValues)), "enum value has been changed in an incompatible way"))
-		}
-		lcd.Enum = nil
-		lcdEnumValues := sets.List[string](existingEnumValues.Intersection(newEnumValues))
-		for _, val := range lcdEnumValues {
-			lcd.Enum = append(lcd.Enum, schema.JSON{Object: val})
-		}
+		errors = append(errors, field.Invalid(fldPath.Child("enum"), sets.List[string](newEnumValues.Difference(existingEnumValues)), "enum value has been changed in an incompatible way"))
 	}
 
 	if existing.Format != new.Format {
-		multierr.AppendInto(&err, field.Invalid(fldPath.Child("format"), new.Format, "format value has been changed in an incompatible way"))
+		errors = append(errors, field.Invalid(fldPath.Child("format"), new.Format, "format value has been changed in an incompatible way"))
 	}
-	return err
+
+	return utilerrors.NewAggregate(errors)
 }
 
-func lcdForString(fldPath *field.Path, existing, new *schema.Structural, lcd *schema.Structural, narrowExisting bool) error {
-	return multierr.Combine(
+func validateStringCompatibility(fldPath *field.Path, existing, new *schema.Structural) error {
+	var errors []error
+
+	errors = append(errors,
 		checkTypesAreTheSame(fldPath, existing, new),
-		lcdForStringValidation(fldPath, existing.ValueValidation, new.ValueValidation, lcd.ValueValidation, narrowExisting))
+		validateStringValueValidationCompatibility(fldPath, existing.ValueValidation, new.ValueValidation),
+	)
+
+	return utilerrors.NewAggregate(errors)
 }
 
-func lcdForBooleanValidation(fldPath *field.Path, existing, new, lcd *schema.ValueValidation, narrowExisting bool) error {
-	return multierr.Combine(
-		checkUnsupportedValidation(fldPath, existing.AllOf, new.AllOf, "allOf", "boolean"),
-		checkUnsupportedValidation(fldPath, existing.AllOf, new.AllOf, "anytOf", "boolean"),
-		checkUnsupportedValidation(fldPath, existing.AllOf, new.AllOf, "oneOf", "boolean"),
-		checkUnsupportedValidation(fldPath, existing.Enum, new.Enum, "enum", "boolean"))
+func validateBooleanValueValidationCompatibility(fldPath *field.Path, existing, new *schema.ValueValidation) error {
+	var errors []error
+
+	errors = append(errors,
+		errorIfPresent(fldPath, existing.AllOf, new.AllOf, "allOf", "boolean"),
+		errorIfPresent(fldPath, existing.AllOf, new.AllOf, "anyOf", "boolean"),
+		errorIfPresent(fldPath, existing.AllOf, new.AllOf, "oneOf", "boolean"),
+		errorIfPresent(fldPath, existing.Enum, new.Enum, "enum", "boolean"),
+	)
+
+	return utilerrors.NewAggregate(errors)
 }
 
-func lcdForBoolean(fldPath *field.Path, existing, new *schema.Structural, lcd *schema.Structural, narrowExisting bool) error {
-	return multierr.Combine(
+func validateBooleanCompatibility(fldPath *field.Path, existing, new *schema.Structural) error {
+	var errors []error
+
+	errors = append(errors,
 		checkTypesAreTheSame(fldPath, existing, new),
-		lcdForBooleanValidation(fldPath, existing.ValueValidation, new.ValueValidation, lcd.ValueValidation, narrowExisting))
+		validateBooleanValueValidationCompatibility(fldPath, existing.ValueValidation, new.ValueValidation),
+	)
+
+	return utilerrors.NewAggregate(errors)
 }
 
-func lcdForArrayValidation(fldPath *field.Path, existing, new, lcd *schema.ValueValidation, narrowExisting bool) error {
-	err := multierr.Combine(
-		checkUnsupportedValidation(fldPath, existing.AllOf, new.AllOf, "allOf", "array"),
-		checkUnsupportedValidation(fldPath, existing.AllOf, new.AllOf, "anytOf", "array"),
-		checkUnsupportedValidation(fldPath, existing.AllOf, new.AllOf, "oneOf", "array"),
-		checkUnsupportedValidation(fldPath, existing.Enum, new.Enum, "enum", "array"))
+func validateArrayValueValidationCompatibility(fldPath *field.Path, existing, new *schema.ValueValidation) error {
+	var errors []error
+
 	if !intPointersEqual(new.MaxItems, existing.MaxItems) ||
 		!intPointersEqual(new.MinItems, existing.MinItems) {
-		err = multierr.Combine(
-			err,
-			checkUnsupportedValidation(fldPath, existing.MaxLength, new.MaxLength, "maxItems", "array"),
-			checkUnsupportedValidation(fldPath, existing.MinLength, new.MinLength, "minItems", "array"))
+		errors = append(errors,
+			errorIfPresent(fldPath, existing.MaxLength, new.MaxLength, "maxItems", "array"),
+			errorIfPresent(fldPath, existing.MinLength, new.MinLength, "minItems", "array"),
+		)
 	}
+
 	if !existing.UniqueItems && new.UniqueItems {
-		if !narrowExisting {
-			multierr.AppendInto(&err, field.Invalid(fldPath.Child("uniqueItems"), new.UniqueItems, "uniqueItems value has been changed in an incompatible way"))
-		} else {
-			lcd.UniqueItems = true
-		}
+		errors = append(errors, field.Invalid(fldPath.Child("uniqueItems"), new.UniqueItems, "uniqueItems value has been changed in an incompatible way"))
 	}
-	return err
+
+	return utilerrors.NewAggregate(errors)
 }
 
-func lcdForArray(fldPath *field.Path, existing, new *schema.Structural, lcd *schema.Structural, narrowExisting bool) error {
-	err := multierr.Combine(
+func validateArrayCompatibility(fldPath *field.Path, existing, new *schema.Structural) error {
+	var errors []error
+
+	errors = append(errors,
 		checkTypesAreTheSame(fldPath, existing, new),
-		lcdForArrayValidation(fldPath, existing.ValueValidation, new.ValueValidation, lcd.ValueValidation, narrowExisting),
-		lcdForStructural(fldPath.Child("Items"), existing.Items, new.Items, lcd.Items, narrowExisting))
+		validateArrayValueValidationCompatibility(fldPath, existing.ValueValidation, new.ValueValidation),
+		validateStructuralSchemaCompatibility(fldPath.Child("Items"), existing.Items, new.Items),
+	)
+
 	if !stringPointersEqual(existing.Extensions.XListType, new.Extensions.XListType) {
-		multierr.AppendInto(&err, field.Invalid(fldPath.Child("x-kubernetes-list-type"), new.Extensions.XListType, "x-kubernetes-list-type value has been changed in an incompatible way"))
+		errors = append(errors, field.Invalid(fldPath.Child("x-kubernetes-list-type"), new.Extensions.XListType, "x-kubernetes-list-type value has been changed in an incompatible way"))
 	}
+
 	if !sets.New[string](existing.Extensions.XListMapKeys...).Equal(sets.New[string](new.Extensions.XListMapKeys...)) {
-		multierr.AppendInto(&err, field.Invalid(fldPath.Child("x-kubernetes-list-map-keys"), new.Extensions.XListType, "x-kubernetes-list-map-keys value has been changed in an incompatible way"))
+		errors = append(errors, field.Invalid(fldPath.Child("x-kubernetes-list-map-keys"), new.Extensions.XListType, "x-kubernetes-list-map-keys value has been changed in an incompatible way"))
 	}
-	return err
+
+	return utilerrors.NewAggregate(errors)
 }
 
-func lcdForObjectValidation(fldPath *field.Path, existing, new, lcd *schema.ValueValidation, narrowExisting bool) error {
-	return multierr.Combine(
-		checkUnsupportedValidation(fldPath, existing.AllOf, new.AllOf, "allOf", "object"),
-		checkUnsupportedValidation(fldPath, existing.AllOf, new.AllOf, "anyOf", "object"),
-		checkUnsupportedValidation(fldPath, existing.AllOf, new.AllOf, "oneOf", "object"),
-		checkUnsupportedValidation(fldPath, existing.Enum, new.Enum, "enum", "object"))
+func validateObjectValueValidationCompatibility(fldPath *field.Path, existing, new *schema.ValueValidation) error {
+	var errors []error
+
+	errors = append(errors,
+		errorIfPresent(fldPath, existing.AllOf, new.AllOf, "allOf", "object"),
+		errorIfPresent(fldPath, existing.AllOf, new.AllOf, "anyOf", "object"),
+		errorIfPresent(fldPath, existing.AllOf, new.AllOf, "oneOf", "object"),
+		errorIfPresent(fldPath, existing.Enum, new.Enum, "enum", "object"),
+	)
+
+	return utilerrors.NewAggregate(errors)
 }
 
-func lcdForObject(fldPath *field.Path, existing, new *schema.Structural, lcd *schema.Structural, narrowExisting bool) error {
-	err := checkTypesAreTheSame(fldPath, existing, new)
+func validateObjectCompatibility(fldPath *field.Path, existing, new *schema.Structural) error {
+	var errors []error
+
+	errors = append(errors, checkTypesAreTheSame(fldPath, existing, new))
 
 	if !stringPointersEqual(existing.Extensions.XMapType, new.Extensions.XMapType) {
-		multierr.AppendInto(&err, field.Invalid(fldPath.Child("x-kubernetes-map-type"), new.Extensions.XListType, "x-kubernetes-map-type value has been changed in an incompatible way"))
+		errors = append(errors, field.Invalid(fldPath.Child("x-kubernetes-map-type"), new.Extensions.XListType, "x-kubernetes-map-type value has been changed in an incompatible way"))
 	}
 
 	// Let's keep in mind that, in structural schemas, properties and additionalProperties are mutually exclusive,
 	// which greatly simplifies the logic here.
-
 	if len(existing.Properties) > 0 {
 		if len(new.Properties) > 0 {
 			existingProperties := sets.StringKeySet(existing.Properties)
 			newProperties := sets.StringKeySet(new.Properties)
-			lcdProperties := existingProperties
 			if !newProperties.IsSuperset(existingProperties) {
-				if !narrowExisting {
-					multierr.AppendInto(&err, field.Invalid(fldPath.Child("properties"), existingProperties.Difference(newProperties).List(), "properties have been removed in an incompatible way"))
-				}
-				lcdProperties = existingProperties.Intersection(newProperties)
-			}
-			for _, key := range lcdProperties.List() {
-				existingPropertySchema := existing.Properties[key]
-				newPropertySchema := new.Properties[key]
-				lcdPropertySchema := lcd.Properties[key]
-				multierr.AppendInto(&err, lcdForStructural(fldPath.Child("properties").Key(key), &existingPropertySchema, &newPropertySchema, &lcdPropertySchema, narrowExisting))
-				lcd.Properties[key] = lcdPropertySchema
-			}
-			for _, removedProperty := range existingProperties.Difference(lcdProperties).UnsortedList() {
-				delete(lcd.Properties, removedProperty)
+				errors = append(errors, field.Invalid(fldPath.Child("properties"), existingProperties.Difference(newProperties).List(), "properties have been removed in an incompatible way"))
 			}
 		} else if new.AdditionalProperties != nil && new.AdditionalProperties.Structural != nil {
 			for _, key := range sets.StringKeySet(existing.Properties).List() {
 				existingPropertySchema := existing.Properties[key]
-				lcdPropertySchema := lcd.Properties[key]
-				multierr.AppendInto(&err, lcdForStructural(fldPath.Child("properties").Key(key), &existingPropertySchema, new.AdditionalProperties.Structural, &lcdPropertySchema, narrowExisting))
-				lcd.Properties[key] = lcdPropertySchema
+				errors = append(errors, validateStructuralSchemaCompatibility(fldPath.Child("properties").Key(key), &existingPropertySchema, new.AdditionalProperties.Structural))
 			}
 		} else if new.AdditionalProperties != nil && new.AdditionalProperties.Bool {
 			// that allows named properties only.
 			// => Keep the existing schemas as the lcd.
 		} else {
-			multierr.AppendInto(&err, field.Invalid(fldPath.Child("properties"), sets.StringKeySet(existing.Properties).List(), "properties value has been completely cleared in an incompatible way"))
+			errors = append(errors, field.Invalid(fldPath.Child("properties"), sets.StringKeySet(existing.Properties).List(), "properties value has been completely cleared in an incompatible way"))
 		}
 	} else if existing.AdditionalProperties != nil {
 		if existing.AdditionalProperties.Structural != nil {
 			if new.AdditionalProperties.Structural != nil {
-				multierr.AppendInto(&err, lcdForStructural(fldPath.Child("additionalProperties"), existing.AdditionalProperties.Structural, new.AdditionalProperties.Structural, lcd.AdditionalProperties.Structural, narrowExisting))
+				errors = append(errors, validateStructuralSchemaCompatibility(fldPath.Child("additionalProperties"), existing.AdditionalProperties.Structural, new.AdditionalProperties.Structural))
 			} else if existing.AdditionalProperties != nil && new.AdditionalProperties.Bool {
 				// new schema allows any properties of any schema here => it is a superset of the existing schema
 				// that allows any properties of a given schema.
 				// => Keep the existing schemas as the lcd.
 			} else {
-				multierr.AppendInto(&err, field.Invalid(fldPath.Child("additionalProperties"), new.AdditionalProperties.Bool, "additionalProperties value has been changed in an incompatible way"))
+				errors = append(errors, field.Invalid(fldPath.Child("additionalProperties"), new.AdditionalProperties.Bool, "additionalProperties value has been changed in an incompatible way"))
 			}
 		} else if existing.AdditionalProperties.Bool {
 			if !new.AdditionalProperties.Bool {
-				if !narrowExisting {
-					multierr.AppendInto(&err, field.Invalid(fldPath.Child("additionalProperties"), new.AdditionalProperties.Bool, "additionalProperties value has been changed in an incompatible way"))
-				}
-				lcd.AdditionalProperties.Bool = false
-				lcd.AdditionalProperties.Structural = new.AdditionalProperties.Structural
+				errors = append(errors, field.Invalid(fldPath.Child("additionalProperties"), new.AdditionalProperties.Bool, "additionalProperties value has been changed in an incompatible way"))
 			}
 		}
 	}
 
-	multierr.AppendInto(&err, lcdForObjectValidation(fldPath, existing.ValueValidation, new.ValueValidation, lcd.ValueValidation, narrowExisting))
+	errors = append(errors, validateObjectValueValidationCompatibility(fldPath, existing.ValueValidation, new.ValueValidation))
 
-	return err
+	return utilerrors.NewAggregate(errors)
 }
 
-func lcdForIntOrString(fldPath *field.Path, existing, new *schema.Structural, lcd *schema.Structural, narrowExisting bool) error {
-	err := checkTypesAreTheSame(fldPath, existing, new)
+func validateIntOrStringCompatibility(fldPath *field.Path, existing, new *schema.Structural) error {
+	var errors []error
+
+	errors = append(errors, checkTypesAreTheSame(fldPath, existing, new))
+
 	if !new.XIntOrString {
-		multierr.AppendInto(&err, field.Invalid(fldPath.Child("x-kubernetes-int-or-string"), new.XIntOrString, "x-kubernetes-int-or-string value has been changed in an incompatible way"))
+		errors = append(errors, field.Invalid(fldPath.Child("x-kubernetes-int-or-string"), new.XIntOrString, "x-kubernetes-int-or-string value has been changed in an incompatible way"))
 	}
 
-	// We special-case IntOrString, since they are expected to have a fixed AnyOf value.
-	// So we'll check the AnyOf separately and remove it from the further string-related or int-related validation
-	// where anyOf is currently not supported.
-	existingAnyOf := existing.ValueValidation.AnyOf
-	newAnyOf := new.ValueValidation.AnyOf
-	if !reflect.DeepEqual(existingAnyOf, newAnyOf) {
-		multierr.AppendInto(&err, field.Invalid(fldPath.Child("anyOf"), newAnyOf, "anyOf value has been changed in an incompatible way"))
-	}
-	existing.ValueValidation.AnyOf = nil
-	new.ValueValidation.AnyOf = nil
-	err = multierr.Combine(
-		err,
-		lcdForStringValidation(fldPath, existing.ValueValidation, new.ValueValidation, lcd.ValueValidation, narrowExisting),
-		lcdForIntegerValidation(fldPath, existing.ValueValidation, new.ValueValidation, lcd.ValueValidation, narrowExisting))
-	existing.ValueValidation.AnyOf = existingAnyOf
-	lcd.ValueValidation.AnyOf = existingAnyOf
-	new.ValueValidation.AnyOf = newAnyOf
+	errors = append(errors,
+		validateStringValueValidationCompatibility(fldPath, existing.ValueValidation, new.ValueValidation),
+		validateNumberValueValidationCompatibility(fldPath, existing.ValueValidation, new.ValueValidation, "x-kubernetes-int-or-string"),
+	)
 
-	return err
+	return utilerrors.NewAggregate(errors)
 }
 
-func lcdForPreserveUnknownFields(fldPath *field.Path, existing, new *schema.Structural, lcd *schema.Structural, narrowExisting bool) error {
+func validatePreserveUnknownFieldsCompatibility(fldPath *field.Path, existing, new *schema.Structural) error {
 	return checkTypesAreTheSame(fldPath, existing, new)
 }
