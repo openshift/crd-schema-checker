@@ -18,7 +18,7 @@ func (noUints) Name() string {
 }
 
 func (noUints) WhyItMatters() string {
-	return "Unsigned integers don't have consistent support accros languages and libraries."
+	return "Unsigned integers don't have consistent support across languages and libraries."
 }
 
 func (n noUints) Validate(crd *apiextensionsv1.CustomResourceDefinition) (ComparisonResults, error) {
