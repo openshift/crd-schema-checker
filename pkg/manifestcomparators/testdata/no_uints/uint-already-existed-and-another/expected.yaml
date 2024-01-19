@@ -1,0 +1,6 @@
+items:
+  - name: NoUints
+    errors: 
+     - crd/test.openshift.io version/v1 field/^.spec.new-uint-property may not be a uint
+    warnings: []
+    infos: []
