@@ -19,7 +19,11 @@ func (conditionsMustHaveProperSSATags) Name() string {
 }
 
 func (conditionsMustHaveProperSSATags) WhyItMatters() string {
-	return "Collection of conditions should be treated as a map with a key of type."
+	return "Conditions should follow the standard schema included in  " +
+		"https://github.com/kubernetes/apimachinery/blob/release-1.29/pkg/apis/meta/v1/types.go#L1482-L1542" +
+		"and collection of conditions should be treated as a map with a key of type. " +
+		"This is indicated in kubebuilder tags with '// +listType=map' and '// +listMapKey=type'."
+
 }
 
 func (c conditionsMustHaveProperSSATags) Validate(crd *apiextensionsv1.CustomResourceDefinition) (ComparisonResults, error) {
