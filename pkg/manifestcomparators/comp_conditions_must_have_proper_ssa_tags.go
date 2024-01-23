@@ -8,8 +8,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
-const mapType = "map"
-
 type conditionsMustHaveProperSSATags struct{}
 
 func ConditionsMustHaveProperSSATags() CRDComparator {
@@ -40,7 +38,11 @@ func (c conditionsMustHaveProperSSATags) Validate(crd *apiextensionsv1.CustomRes
 					return false
 				}
 
-				if s.XListType == nil || *s.XListType != mapType {
+				if !areConditionPropertiesPresent(s.Items.Schema.Properties) {
+					return false
+				}
+
+				if s.XListType == nil || *s.XListType != "map" {
 					conditionsWithoutMapListType = append(conditionsWithoutMapListType, simpleLocation.String())
 				}
 
@@ -82,4 +84,16 @@ func containsString(a []string, s string) bool {
 		}
 	}
 	return false
+}
+
+func areConditionPropertiesPresent(properties map[string]apiextensionsv1.JSONSchemaProps) bool {
+	expectedConditionProperties := []string{"type", "reason", "status", "observedGeneration", "lastTransitionTime"}
+
+	for _, p := range expectedConditionProperties {
+		_, ok := properties[p]
+		if !ok {
+			return false
+		}
+	}
+	return true
 }
