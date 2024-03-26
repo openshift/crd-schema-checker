@@ -43,16 +43,32 @@ func (b noFieldRemoval) Compare(existingCRD, newCRD *apiextensionsv1.CustomResou
 		}
 
 		existingFields := sets.NewString()
+		existingEnumsMap := make(map[string]sets.String)
 		SchemaHas(existingVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), nil,
 			func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path, _ []*apiextensionsv1.JSONSchemaProps) bool {
 				existingFields.Insert(simpleLocation.String())
+				for _, enum := range s.Enum {
+					_, exists := existingEnumsMap[simpleLocation.String()]
+					if !exists {
+						existingEnumsMap[simpleLocation.String()] = sets.NewString()
+					}
+					existingEnumsMap[simpleLocation.String()].Insert(string(enum.Raw))
+				}
 				return false
 			})
 
 		newFields := sets.NewString()
+		newEnumsMap := make(map[string]sets.String)
 		SchemaHas(newVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), nil,
 			func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path, _ []*apiextensionsv1.JSONSchemaProps) bool {
 				newFields.Insert(simpleLocation.String())
+				for _, enum := range s.Enum {
+					_, exists := newEnumsMap[simpleLocation.String()]
+					if !exists {
+						newEnumsMap[simpleLocation.String()] = sets.NewString()
+					}
+					newEnumsMap[simpleLocation.String()].Insert(string(enum.Raw))
+				}
 				return false
 			})
 
@@ -61,7 +77,18 @@ func (b noFieldRemoval) Compare(existingCRD, newCRD *apiextensionsv1.CustomResou
 			errsToReport = append(errsToReport, fmt.Sprintf("crd/%v version/%v field/%v may not be removed", newCRD.Name, newVersion.Name, removedField))
 		}
 
+		for field, existingEnums := range existingEnumsMap {
+			newEnums, exists := newEnumsMap[field]
+			if exists {
+				removedEnums := existingEnums.Difference(newEnums)
+				for _, removedEnum := range removedEnums.List() {
+					errsToReport = append(errsToReport, fmt.Sprintf("crd/%v version/%v enum/%v may not be removed for field/%v", newCRD.Name, newVersion.Name, removedEnum, field))
+				}
+			}
+		}
+
 	}
+
 
 	return ComparisonResults{
 		Name:         b.Name(),
