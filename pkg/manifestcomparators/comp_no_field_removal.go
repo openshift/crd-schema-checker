@@ -22,6 +22,26 @@ func (noFieldRemoval) WhyItMatters() string {
 	return "If fields are removed, then clients that rely on those fields will not be able to read them or write them."
 }
 
+func getFieldsAndEnums(version *apiextensionsv1.CustomResourceDefinitionVersion) (sets.String, map[string]sets.String) {
+	fields := sets.NewString()
+	enumsMap := make(map[string]sets.String)
+	SchemaHas(version.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), nil,
+		func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path, _ []*apiextensionsv1.JSONSchemaProps) bool {
+			fields.Insert(simpleLocation.String())
+			for _, enum := range s.Enum {
+				_, exists := enumsMap[simpleLocation.String()]
+				if !exists {
+					enumsMap[simpleLocation.String()] = sets.NewString()
+				}
+				enumsMap[simpleLocation.String()].Insert(string(enum.Raw))
+			}
+			return false
+		})
+
+	return fields, enumsMap
+
+}
+
 func (b noFieldRemoval) Compare(existingCRD, newCRD *apiextensionsv1.CustomResourceDefinition) (ComparisonResults, error) {
 	if existingCRD == nil {
 		return ComparisonResults{
@@ -42,35 +62,8 @@ func (b noFieldRemoval) Compare(existingCRD, newCRD *apiextensionsv1.CustomResou
 			continue
 		}
 
-		existingFields := sets.NewString()
-		existingEnumsMap := make(map[string]sets.String)
-		SchemaHas(existingVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), nil,
-			func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path, _ []*apiextensionsv1.JSONSchemaProps) bool {
-				existingFields.Insert(simpleLocation.String())
-				for _, enum := range s.Enum {
-					_, exists := existingEnumsMap[simpleLocation.String()]
-					if !exists {
-						existingEnumsMap[simpleLocation.String()] = sets.NewString()
-					}
-					existingEnumsMap[simpleLocation.String()].Insert(string(enum.Raw))
-				}
-				return false
-			})
-
-		newFields := sets.NewString()
-		newEnumsMap := make(map[string]sets.String)
-		SchemaHas(newVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), nil,
-			func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path, _ []*apiextensionsv1.JSONSchemaProps) bool {
-				newFields.Insert(simpleLocation.String())
-				for _, enum := range s.Enum {
-					_, exists := newEnumsMap[simpleLocation.String()]
-					if !exists {
-						newEnumsMap[simpleLocation.String()] = sets.NewString()
-					}
-					newEnumsMap[simpleLocation.String()].Insert(string(enum.Raw))
-				}
-				return false
-			})
+		existingFields, existingEnumsMap := getFieldsAndEnums(existingVersion)
+		newFields, newEnumsMap := getFieldsAndEnums(&newVersion)
 
 		removedFields := existingFields.Difference(newFields)
 		for _, removedField := range removedFields.List() {
