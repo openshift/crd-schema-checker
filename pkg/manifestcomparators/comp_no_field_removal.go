@@ -82,7 +82,6 @@ func (b noFieldRemoval) Compare(existingCRD, newCRD *apiextensionsv1.CustomResou
 
 	}
 
-
 	return ComparisonResults{
 		Name:         b.Name(),
 		WhyItMatters: b.WhyItMatters(),
