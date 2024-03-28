@@ -22,7 +22,6 @@ func (noFieldRemoval) WhyItMatters() string {
 	return "If fields are removed, then clients that rely on those fields will not be able to read them or write them."
 }
 
-
 func getFields(version *apiextensionsv1.CustomResourceDefinitionVersion) sets.String {
 	fields := sets.NewString()
 	SchemaHas(version.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), nil,
@@ -53,7 +52,6 @@ func (b noFieldRemoval) Compare(existingCRD, newCRD *apiextensionsv1.CustomResou
 		if existingVersion == nil {
 			continue
 		}
-
 
 		existingFields := getFields(existingVersion)
 		newFields := getFields(&newVersion)
