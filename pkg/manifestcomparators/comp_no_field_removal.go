@@ -22,6 +22,18 @@ func (noFieldRemoval) WhyItMatters() string {
 	return "If fields are removed, then clients that rely on those fields will not be able to read them or write them."
 }
 
+
+func getFields(version *apiextensionsv1.CustomResourceDefinitionVersion) sets.String {
+	fields := sets.NewString()
+	SchemaHas(version.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), nil,
+		func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path, _ []*apiextensionsv1.JSONSchemaProps) bool {
+			fields.Insert(simpleLocation.String())
+			return false
+		})
+
+	return fields
+}
+
 func (b noFieldRemoval) Compare(existingCRD, newCRD *apiextensionsv1.CustomResourceDefinition) (ComparisonResults, error) {
 	if existingCRD == nil {
 		return ComparisonResults{
@@ -42,19 +54,9 @@ func (b noFieldRemoval) Compare(existingCRD, newCRD *apiextensionsv1.CustomResou
 			continue
 		}
 
-		existingFields := sets.NewString()
-		SchemaHas(existingVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), nil,
-			func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path, _ []*apiextensionsv1.JSONSchemaProps) bool {
-				existingFields.Insert(simpleLocation.String())
-				return false
-			})
 
-		newFields := sets.NewString()
-		SchemaHas(newVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), nil,
-			func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path, _ []*apiextensionsv1.JSONSchemaProps) bool {
-				newFields.Insert(simpleLocation.String())
-				return false
-			})
+		existingFields := getFields(existingVersion)
+		newFields := getFields(&newVersion)
 
 		removedFields := existingFields.Difference(newFields)
 		for _, removedField := range removedFields.List() {
