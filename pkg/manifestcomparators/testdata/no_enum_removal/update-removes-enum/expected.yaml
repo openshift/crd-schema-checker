@@ -1,7 +1,6 @@
 items:
-  - name: NoFieldRemoval
-    whyItMatters: If fields are removed, then clients that rely on those fields will not
-      be able to read them or write them.
+  - name: NoEnumRemoval
+    whyItMatters: If enums are removed, then clients that use those enum values will not be able to upgrade to the newest CRD.
     errors:
     - crd/schedulers.config.openshift.io version/v1 enum/"NoScoring" may not be removed
       for field/^.spec.profile

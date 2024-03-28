@@ -22,26 +22,6 @@ func (noFieldRemoval) WhyItMatters() string {
 	return "If fields are removed, then clients that rely on those fields will not be able to read them or write them."
 }
 
-func getFieldsAndEnums(version *apiextensionsv1.CustomResourceDefinitionVersion) (sets.String, map[string]sets.String) {
-	fields := sets.NewString()
-	enumsMap := make(map[string]sets.String)
-	SchemaHas(version.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), nil,
-		func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path, _ []*apiextensionsv1.JSONSchemaProps) bool {
-			fields.Insert(simpleLocation.String())
-			for _, enum := range s.Enum {
-				_, exists := enumsMap[simpleLocation.String()]
-				if !exists {
-					enumsMap[simpleLocation.String()] = sets.NewString()
-				}
-				enumsMap[simpleLocation.String()].Insert(string(enum.Raw))
-			}
-			return false
-		})
-
-	return fields, enumsMap
-
-}
-
 func (b noFieldRemoval) Compare(existingCRD, newCRD *apiextensionsv1.CustomResourceDefinition) (ComparisonResults, error) {
 	if existingCRD == nil {
 		return ComparisonResults{
@@ -62,22 +42,23 @@ func (b noFieldRemoval) Compare(existingCRD, newCRD *apiextensionsv1.CustomResou
 			continue
 		}
 
-		existingFields, existingEnumsMap := getFieldsAndEnums(existingVersion)
-		newFields, newEnumsMap := getFieldsAndEnums(&newVersion)
+		existingFields := sets.NewString()
+		SchemaHas(existingVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), nil,
+			func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path, _ []*apiextensionsv1.JSONSchemaProps) bool {
+				existingFields.Insert(simpleLocation.String())
+				return false
+			})
+
+		newFields := sets.NewString()
+		SchemaHas(newVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), nil,
+			func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path, _ []*apiextensionsv1.JSONSchemaProps) bool {
+				newFields.Insert(simpleLocation.String())
+				return false
+			})
 
 		removedFields := existingFields.Difference(newFields)
 		for _, removedField := range removedFields.List() {
 			errsToReport = append(errsToReport, fmt.Sprintf("crd/%v version/%v field/%v may not be removed", newCRD.Name, newVersion.Name, removedField))
-		}
-
-		for field, existingEnums := range existingEnumsMap {
-			newEnums, exists := newEnumsMap[field]
-			if exists {
-				removedEnums := existingEnums.Difference(newEnums)
-				for _, removedEnum := range removedEnums.List() {
-					errsToReport = append(errsToReport, fmt.Sprintf("crd/%v version/%v enum/%v may not be removed for field/%v", newCRD.Name, newVersion.Name, removedEnum, field))
-				}
-			}
 		}
 
 	}

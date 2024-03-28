@@ -1,5 +1,5 @@
 items:
-  - name: NoFieldRemoval
+  - name: NoEnumRemoval
     errors: []
     warnings:
     infos:
