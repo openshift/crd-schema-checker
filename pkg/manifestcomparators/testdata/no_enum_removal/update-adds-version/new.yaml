@@ -34,5 +34,24 @@ spec:
                   enum:
                     - ""
                     - LowNodeUtilization
+                    - HighNodeUtilization
                     - NoScoring
+    - name: v2
+      schema:
+        openAPIV3Schema:
+          description: "Fake description 1"
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              description: spec holds user settable values for configuration
+              type: object
+              properties:
+                profile:
+                  description: "Fake description 2"
+                  type: string
+                  enum:
+                    - ""
+                    - LowNodeUtilization
                     - HighNodeUtilization
