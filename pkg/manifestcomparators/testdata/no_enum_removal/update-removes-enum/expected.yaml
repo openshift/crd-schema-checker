@@ -1,0 +1,8 @@
+items:
+  - name: NoEnumRemoval
+    whyItMatters: If enums are removed, then clients that use those enum values will not be able to upgrade to the newest CRD.
+    errors:
+    - crd/schedulers.config.openshift.io version/v1 enum/"NoScoring" may not be removed
+      for field/^.spec.profile
+    warnings:
+    infos:
