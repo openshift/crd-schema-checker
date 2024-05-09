@@ -1,0 +1,6 @@
+items:
+  - name: ConditionsMustHaveProperSSATags
+    errors: 
+     - "crd/test.openshift.io version/v1 field/^.status.condition must define valid condition properties: reason attribute is missing"
+    warnings: []
+    infos: []

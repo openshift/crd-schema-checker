@@ -2,6 +2,6 @@ items:
   - name: ConditionsMustHaveProperSSATags
     errors: 
      - crd/test.openshift.io version/v1 field/^.status.conditions must set x-kubernetes-list-type with value "map"
-     - crd/test.openshift.io version/v1 field/^.status.conditions must set x-kubernetes-list-map-keys containing value "type"
+     - crd/test.openshift.io version/v1 field/^.status.conditions must set x-kubernetes-list-map-keys with single "type" value
     warnings: []
     infos: []

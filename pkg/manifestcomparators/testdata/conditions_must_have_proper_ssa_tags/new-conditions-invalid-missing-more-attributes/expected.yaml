@@ -1,0 +1,7 @@
+items:
+  - name: ConditionsMustHaveProperSSATags
+    errors: 
+     - "crd/test.openshift.io version/v1 field/^.status.condition must define valid condition properties: lastTransitionTime attribute is missing"
+     - "crd/test.openshift.io version/v1 field/^.status.condition must define valid condition properties: observedGeneration attribute is missing"
+    warnings: []
+    infos: []

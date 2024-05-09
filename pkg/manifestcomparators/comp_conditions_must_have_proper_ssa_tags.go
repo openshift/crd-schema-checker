@@ -52,7 +52,7 @@ func (c conditionsMustHaveProperSSATags) Validate(crd *apiextensionsv1.CustomRes
 					conditionsWithoutMapListType = append(conditionsWithoutMapListType, simpleLocation.String())
 				}
 
-				if len(s.XListMapKeys) == 0 || !stringSliceContainsString(s.XListMapKeys, "type") {
+				if len(s.XListMapKeys) == 0 || !listMapKeysHasSingleTypeElement(s.XListMapKeys) {
 					conditionsWithoutListMapKeysType = append(conditionsWithoutListMapKeysType, simpleLocation.String())
 				}
 
@@ -69,7 +69,7 @@ func (c conditionsMustHaveProperSSATags) Validate(crd *apiextensionsv1.CustomRes
 			errsToReport = append(errsToReport, errStr)
 		}
 		for _, affectedField := range conditionsWithoutListMapKeysType {
-			errStr := fmt.Sprintf("crd/%v version/%v field/%v must set x-kubernetes-list-map-keys containing value \"type\"", crd.Name, newVersion.Name, affectedField)
+			errStr := fmt.Sprintf("crd/%v version/%v field/%v must set x-kubernetes-list-map-keys with single \"type\" value", crd.Name, newVersion.Name, affectedField)
 			errsToReport = append(errsToReport, errStr)
 		}
 	}
@@ -88,13 +88,11 @@ func (b conditionsMustHaveProperSSATags) Compare(existingCRD, newCRD *apiextensi
 	return RatchetCompare(b, existingCRD, newCRD)
 }
 
-func stringSliceContainsString(a []string, s string) bool {
-	for _, v := range a {
-		if v == s {
-			return true
-		}
+func listMapKeysHasSingleTypeElement(keys []string) bool {
+	if len(keys) != 1 {
+		return false
 	}
-	return false
+	return keys[0] == "type"
 }
 
 func jsonSliceContainsString(a []apiextensionsv1.JSON, s string) bool {
@@ -122,7 +120,7 @@ func validateConditionProperties(properties map[string]apiextensionsv1.JSONSchem
 	}
 	lastTransitionTime, ok := properties["lastTransitionTime"]
 	if !ok {
-		errString = append(errString, "lastTransitioNTime attribute is missing")
+		errString = append(errString, "lastTransitionTime attribute is missing")
 	}
 	observedGeneration, ok := properties["observedGeneration"]
 	if !ok {
