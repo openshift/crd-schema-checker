@@ -32,6 +32,14 @@ func (b mustNotExceedCostBudget) Validate(crd *apiextensionsv1.CustomResourceDef
 	errsToReport := []string{}
 
 	for _, newVersion := range crd.Spec.Versions {
+		schema := &apiextensions.JSONSchemaProps{}
+		if err := apiextensionsv1.Convert_v1_JSONSchemaProps_To_apiextensions_JSONSchemaProps(newVersion.Schema.OpenAPIV3Schema, schema, nil); err != nil {
+			errsToReport = append(errsToReport, err.Error())
+			continue
+		}
+
+		rootCELContext := apiextensionsvalidation.RootCELContext(schema)
+
 		SchemaHas(newVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), nil,
 			func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path, _ []*apiextensionsv1.JSONSchemaProps) bool {
 				schema := &apiextensions.JSONSchemaProps{}
@@ -40,7 +48,7 @@ func (b mustNotExceedCostBudget) Validate(crd *apiextensionsv1.CustomResourceDef
 					return false
 				}
 
-				celContext := apiextensionsvalidation.RootCELContext(schema)
+				celContext := rootCELContext.ChildPropertyContext(schema, fldPath.String())
 				typeInfo, err := celContext.TypeInfo()
 				if err != nil {
 					errsToReport = append(errsToReport, err.Error())
@@ -71,18 +79,18 @@ func (b mustNotExceedCostBudget) Validate(crd *apiextensionsv1.CustomResourceDef
 						costErrorMsg := getCostErrorMessage("estimated rule cost", expressionCost, apiextensionsvalidation.StaticEstimatedCostLimit)
 						errsToReport = append(errsToReport, field.Forbidden(fldPath, costErrorMsg).Error())
 					}
-					if celContext.TotalCost != nil {
-						celContext.TotalCost.ObserveExpressionCost(fldPath, expressionCost)
+					if rootCELContext.TotalCost != nil {
+						rootCELContext.TotalCost.ObserveExpressionCost(fldPath, expressionCost)
 					}
 					if cr.Error != nil {
 						if cr.Error.Type == apiservercel.ErrorTypeRequired {
 							errsToReport = append(errsToReport, field.Required(fldPath, cr.Error.Detail).Error())
 						} else {
-							errsToReport = append(errsToReport, field.Invalid(fldPath, s.XValidations[i], cr.Error.Detail).Error())
+							errsToReport = append(errsToReport, field.Invalid(fldPath, schema.XValidations[i], cr.Error.Detail).Error())
 						}
 					}
 					if cr.MessageExpressionError != nil {
-						errsToReport = append(errsToReport, field.Invalid(fldPath, s.XValidations[i], cr.MessageExpressionError.Detail).Error())
+						errsToReport = append(errsToReport, field.Invalid(fldPath, schema.XValidations[i], cr.MessageExpressionError.Detail).Error())
 					} else if cr.MessageExpression != nil {
 						if cr.MessageExpressionMaxCost > apiextensionsvalidation.StaticEstimatedCostLimit {
 							costErrorMsg := getCostErrorMessage("estimated messageExpression cost", cr.MessageExpressionMaxCost, apiextensionsvalidation.StaticEstimatedCostLimit)
