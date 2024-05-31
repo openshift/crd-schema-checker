@@ -1,0 +1,9 @@
+items:
+  - name: MustNotExceedCostBudget
+    errors:
+    - '^.properties[spec].properties[badCELList]: Forbidden:
+          estimated rule cost exceeds budget by factor of more than 100x (try simplifying
+          the rule, or adding maxItems, maxProperties, and maxLength where arrays, maps, and
+          strings are declared)'
+    warnings:
+    infos:
