@@ -20,3 +20,6 @@
 # Go workspace file
 go.work
 /crd-schema-checker
+
+# Project-local
+.idea/
