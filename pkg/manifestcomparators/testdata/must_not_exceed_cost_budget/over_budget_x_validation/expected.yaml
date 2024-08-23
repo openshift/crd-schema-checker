@@ -7,3 +7,7 @@ items:
           are declared)'
     warnings:
     infos:
+    - '^.spec.badProperty: Field has a maximum cardinality of 1. This is the calculated,
+          worst case number of times the rule will be evaluated.'
+    - '^.spec.badProperty: Rule 0 raw cost is 32715593. Estimated total cost of 32715593. The maximum allowable
+          value is 10000000.'

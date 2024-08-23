@@ -3,6 +3,7 @@ package manifestcomparators
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -30,6 +31,8 @@ func (mustNotExceedCostBudget) WhyItMatters() string {
 
 func (b mustNotExceedCostBudget) Validate(crd *apiextensionsv1.CustomResourceDefinition) (ComparisonResults, error) {
 	errsToReport := []string{}
+	warnings := []string{}
+	infos := []string{}
 
 	for _, newVersion := range crd.Spec.Versions {
 		schema := &apiextensions.JSONSchemaProps{}
@@ -48,7 +51,7 @@ func (b mustNotExceedCostBudget) Validate(crd *apiextensionsv1.CustomResourceDef
 					return false
 				}
 
-				celContext, err := extractCELContext(append(ancestry, s))
+				celContext, err := extractCELContext(append(ancestry, s), fldPath)
 				if err != nil {
 					errsToReport = append(errsToReport, err.Error())
 					return false
@@ -79,7 +82,16 @@ func (b mustNotExceedCostBudget) Validate(crd *apiextensionsv1.CustomResourceDef
 				}
 
 				for i, cr := range compResults {
+					if celContext.MaxCardinality == nil {
+						unboundedParents := getUnboundedParentFields(ancestry, fldPath)
+						warnings = append(warnings, fmt.Sprintf("%s: Field has unbounded cardinality. At least one, variable parent field does not have a maxItems or maxProperties constraint: %s. Falling back to CEL calculated worst case of %d executions.", simpleLocation.String(), strings.Join(unboundedParents, ","), cr.MaxCardinality))
+					} else {
+						infos = append(infos, fmt.Sprintf("%s: Field has a maximum cardinality of %d. This is the calculated, worst case number of times the rule will be evaluated.", simpleLocation.String(), *celContext.MaxCardinality))
+					}
+
 					expressionCost := getExpressionCost(cr, celContext)
+					infos = append(infos, fmt.Sprintf("%s: Rule %d raw cost is %d. Estimated total cost of %d. The maximum allowable value is %d.", simpleLocation.String(), i, cr.MaxCost, expressionCost, apiextensionsvalidation.StaticEstimatedCostLimit))
+
 					if expressionCost > apiextensionsvalidation.StaticEstimatedCostLimit {
 						costErrorMsg := getCostErrorMessage("estimated rule cost", expressionCost, apiextensionsvalidation.StaticEstimatedCostLimit)
 						errsToReport = append(errsToReport, field.Forbidden(fldPath, costErrorMsg).Error())
@@ -87,13 +99,17 @@ func (b mustNotExceedCostBudget) Validate(crd *apiextensionsv1.CustomResourceDef
 					if rootCELContext.TotalCost != nil {
 						rootCELContext.TotalCost.ObserveExpressionCost(fldPath, expressionCost)
 					}
+
 					if cr.Error != nil {
 						if cr.Error.Type == apiservercel.ErrorTypeRequired {
 							errsToReport = append(errsToReport, field.Required(fldPath, cr.Error.Detail).Error())
 						} else {
 							errsToReport = append(errsToReport, field.Invalid(fldPath, schema.XValidations[i], cr.Error.Detail).Error())
 						}
+					} else {
+						infos = append(infos, fmt.Sprintf("%s: Rule %d raw cost is %d. Estimated total cost of %d. The maximum allowable value is %d.", simpleLocation.String(), i, cr.MaxCost, expressionCost, apiextensionsvalidation.StaticEstimatedCostLimit))
 					}
+
 					if cr.MessageExpressionError != nil {
 						errsToReport = append(errsToReport, field.Invalid(fldPath, schema.XValidations[i], cr.MessageExpressionError.Detail).Error())
 					} else if cr.MessageExpression != nil {
@@ -116,8 +132,8 @@ func (b mustNotExceedCostBudget) Validate(crd *apiextensionsv1.CustomResourceDef
 		WhyItMatters: b.WhyItMatters(),
 
 		Errors:   errsToReport,
-		Warnings: nil,
-		Infos:    nil,
+		Warnings: warnings,
+		Infos:    infos,
 	}, nil
 }
 
@@ -165,7 +181,7 @@ func getCostErrorMessage(costName string, expressionCost, costLimit uint64) stri
 
 // extractCELContext takes a series of CEL contextxs and returns the child context of the last schema in the series.
 // This is used so that the calculated maximum cardinality of the field is correct.
-func extractCELContext(schemas []*apiextensionsv1.JSONSchemaProps) (*apiextensionsvalidation.CELSchemaContext, error) {
+func extractCELContext(schemas []*apiextensionsv1.JSONSchemaProps, fldPath *field.Path) (*apiextensionsvalidation.CELSchemaContext, error) {
 	var celContext *apiextensionsvalidation.CELSchemaContext
 
 	for _, s := range schemas {
@@ -183,4 +199,55 @@ func extractCELContext(schemas []*apiextensionsv1.JSONSchemaProps) (*apiextensio
 	}
 
 	return celContext, nil
+}
+
+// getUnboundedParentFields returns a list of field paths that have unbounded cardinality in the ancestry path.
+// This is aiming to help users identify where the unbounded cardinality is coming from.
+func getUnboundedParentFields(ancestry []*apiextensionsv1.JSONSchemaProps, fldPath *field.Path) []string {
+	cleanPathParts := getCleanPathParts(fldPath)
+	var path *field.Path
+
+	unboundedParents := []string{}
+	for i, s := range ancestry {
+		schema := &apiextensions.JSONSchemaProps{}
+		if err := apiextensionsv1.Convert_v1_JSONSchemaProps_To_apiextensions_JSONSchemaProps(s, schema, nil); err != nil {
+			continue
+		}
+
+		if path == nil {
+			path = field.NewPath(cleanPathParts[i])
+		} else if cleanPathParts[i] == "items" {
+			path = path.Index(-1)
+		} else {
+			path = path.Child(cleanPathParts[i])
+		}
+
+		if isUnboundedCardinality(schema) {
+			// Replace the -1 index with * that we use as a placeholder.
+			unboundedParents = append(unboundedParents, strings.Replace(path.String(), "-1", "*", -1))
+		}
+	}
+	return unboundedParents
+}
+
+func getCleanPathParts(fldPath *field.Path) []string {
+	cleanPathParts := []string{}
+	for _, part := range strings.Split(fldPath.String(), ".") {
+		if strings.HasPrefix(part, "properties[") {
+			part = strings.TrimPrefix(strings.TrimSuffix(part, "]"), "properties[")
+		}
+		cleanPathParts = append(cleanPathParts, part)
+	}
+	return cleanPathParts
+}
+
+func isUnboundedCardinality(schema *apiextensions.JSONSchemaProps) bool {
+	switch schema.Type {
+	case "object":
+		return schema.AdditionalProperties != nil && schema.MaxProperties == nil
+	case "array":
+		return schema.MaxItems == nil
+	default:
+		return false
+	}
 }

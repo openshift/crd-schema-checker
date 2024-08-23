@@ -6,4 +6,9 @@ items:
           the rule, or adding maxItems, maxProperties, and maxLength where arrays, maps, and
           strings are declared)'
     warnings:
+    - '^.spec.badList[*].badProperty: Field has unbounded cardinality. At least one, variable
+          parent field does not have a maxItems or maxProperties constraint: ^.spec.badList.
+          Falling back to CEL calculated worst case of 1048576 executions.'
     infos:
+    - '^.spec.badList[*].badProperty: Rule 0 raw cost is 681617. Estimated total cost
+          of 714727227392. The maximum allowable value is 10000000.'
