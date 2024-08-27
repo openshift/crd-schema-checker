@@ -7,3 +7,6 @@ items:
        | ...........^
     warnings:
     infos:
+    - '^.spec.badCELList: Array has maxItems of 2048.'
+    - '^.spec.badCELList: Field has a maximum cardinality of 1. This is the calculated,
+      worst case number of times the rule will be evaluated.'

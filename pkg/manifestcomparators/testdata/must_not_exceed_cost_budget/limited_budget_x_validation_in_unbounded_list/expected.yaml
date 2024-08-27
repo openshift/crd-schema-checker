@@ -10,5 +10,6 @@ items:
           parent field does not have a maxItems or maxProperties constraint: ^.spec.badList.
           Falling back to CEL calculated worst case of 1048576 executions.'
     infos:
+    - '^.spec.badList[*].badProperty: String has maxLength of 16384.'
     - '^.spec.badList[*].badProperty: Rule 0 raw cost is 681617. Estimated total cost
           of 714727227392. The maximum allowable value is 10000000.'

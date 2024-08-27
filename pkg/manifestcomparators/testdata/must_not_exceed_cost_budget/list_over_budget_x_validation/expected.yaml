@@ -6,6 +6,8 @@ items:
           the rule, or adding maxItems, maxProperties, and maxLength where arrays, maps, and
           strings are declared)'
     warnings:
+    - '^.spec.badCELList: Array has unbounded maxItems. It will be considered to have
+          262143 items. Consider adding a maxItems constraint to reduce the raw rule cost.'
     infos:
     - '^.spec.badCELList: Field has a maximum cardinality of 1. This is the calculated,
           worst case number of times the rule will be evaluated.'

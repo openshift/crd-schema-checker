@@ -8,7 +8,9 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsvalidation "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/validation"
+	structuralschema "k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema/cel"
+	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema/cel/model"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	celconfig "k8s.io/apiserver/pkg/apis/cel"
 	apiservercel "k8s.io/apiserver/pkg/cel"
@@ -51,6 +53,13 @@ func (b mustNotExceedCostBudget) Validate(crd *apiextensionsv1.CustomResourceDef
 					return false
 				}
 
+				schemaInfos, schemaWarnings, err := inspectSchema(schema, simpleLocation, len(ancestry) == 0)
+				if err != nil {
+					errsToReport = append(errsToReport, err.Error())
+				}
+				infos = append(infos, schemaInfos...)
+				warnings = append(warnings, schemaWarnings...)
+
 				celContext, err := extractCELContext(append(ancestry, s), fldPath)
 				if err != nil {
 					errsToReport = append(errsToReport, err.Error())
@@ -90,7 +99,6 @@ func (b mustNotExceedCostBudget) Validate(crd *apiextensionsv1.CustomResourceDef
 					}
 
 					expressionCost := getExpressionCost(cr, celContext)
-					infos = append(infos, fmt.Sprintf("%s: Rule %d raw cost is %d. Estimated total cost of %d. The maximum allowable value is %d.", simpleLocation.String(), i, cr.MaxCost, expressionCost, apiextensionsvalidation.StaticEstimatedCostLimit))
 
 					if expressionCost > apiextensionsvalidation.StaticEstimatedCostLimit {
 						costErrorMsg := getCostErrorMessage("estimated rule cost", expressionCost, apiextensionsvalidation.StaticEstimatedCostLimit)
@@ -250,4 +258,51 @@ func isUnboundedCardinality(schema *apiextensions.JSONSchemaProps) bool {
 	default:
 		return false
 	}
+}
+
+func inspectSchema(schema *apiextensions.JSONSchemaProps, simpleLocation *field.Path, isRoot bool) ([]string, []string, error) {
+	if schema.XValidations == nil {
+		return nil, nil, nil
+	}
+
+	typeInfo, err := getDeclType(schema, isRoot)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var infos, warnings []string
+
+	switch schema.Type {
+	case "string":
+		switch {
+		case len(schema.Enum) > 0:
+			// Enums estimated lengths are based on the longest item in the list.
+			// Not a concern for cost estimation generally.
+		case schema.MaxLength == nil:
+			warnings = append(warnings, fmt.Sprintf("%s: String has unbounded maxLength. It will be considered to have length %d. Consider adding a maxLength constraint to reduce the raw rule cost.", simpleLocation.String(), typeInfo.MaxElements))
+		default:
+			infos = append(infos, fmt.Sprintf("%s: String has maxLength of %d.", simpleLocation.String(), *schema.MaxLength))
+		}
+	case "array":
+		switch {
+		case schema.MaxItems == nil:
+			warnings = append(warnings, fmt.Sprintf("%s: Array has unbounded maxItems. It will be considered to have %d items. Consider adding a maxItems constraint to reduce the raw rule cost.", simpleLocation.String(), typeInfo.MaxElements))
+		default:
+			infos = append(infos, fmt.Sprintf("%s: Array has maxItems of %d.", simpleLocation.String(), *schema.MaxItems))
+		}
+	}
+
+	return infos, warnings, nil
+}
+
+func getDeclType(schema *apiextensions.JSONSchemaProps, isRoot bool) (*apiservercel.DeclType, error) {
+	structural, err := structuralschema.NewStructural(schema)
+	if err != nil {
+		return nil, err
+	}
+	declType := model.SchemaDeclType(structural, isRoot)
+	if declType == nil {
+		return nil, fmt.Errorf("unable to convert structural schema to CEL declarations")
+	}
+	return declType, nil
 }
