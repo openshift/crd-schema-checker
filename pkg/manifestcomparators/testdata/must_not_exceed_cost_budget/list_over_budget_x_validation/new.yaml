@@ -52,5 +52,4 @@ spec:
                   description: okProperty is fine, it has no CEL validations
                   type: string
                   minLength: 8
-              required:
-                - badCElList
+                
