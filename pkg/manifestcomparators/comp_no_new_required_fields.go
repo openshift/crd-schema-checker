@@ -2,7 +2,7 @@ package manifestcomparators
 
 import (
 	"fmt"
-	"strings"
+	"regexp"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -45,11 +45,13 @@ func (b noNewRequiredFields) Compare(existingCRD, newCRD *apiextensionsv1.Custom
 		}
 
 		existingRequiredFields := map[string]sets.String{}
-		existingSimpleLocationToJSONSchemaProps := map[string]*apiextensionsv1.JSONSchemaProps{}
+		existingFldPathToJSONSchemaProps := map[string]*apiextensionsv1.JSONSchemaProps{}
+		fldPathToSimpleLocation := map[string]string{}
 		SchemaHas(existingVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), nil,
 			func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path, _ []*apiextensionsv1.JSONSchemaProps) bool {
-				existingRequiredFields[simpleLocation.String()] = sets.NewString(s.Required...)
-				existingSimpleLocationToJSONSchemaProps[simpleLocation.String()] = s
+				existingRequiredFields[fldPath.String()] = sets.NewString(s.Required...)
+				existingFldPathToJSONSchemaProps[fldPath.String()] = s
+				fldPathToSimpleLocation[fldPath.String()] = simpleLocation.String()
 				return false
 			})
 
@@ -57,14 +59,22 @@ func (b noNewRequiredFields) Compare(existingCRD, newCRD *apiextensionsv1.Custom
 		// For instance, you cannot add .spec.thingy as required, but if you add .spec.top as optional and at the same
 		// time add .spec.top.thingy as required, this is allowed.
 		// Similar logic exists for adding an array with minlength > 0
-		newRequiredFields := sets.NewString()
-		newSimpleLocationToRequiredFields := map[string]sets.String{}
-		newToSimpleLocation := map[*apiextensionsv1.JSONSchemaProps]*field.Path{}
+		newFldPathToRequiredFields := map[string]sets.Set[string]{}
+
+		// First collect all possible paths.
+		// There can be multiple invocations per fldPath (e.g. from s.OneOf and s.Properties).
 		SchemaHas(newVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), nil,
 			func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path, ancestors []*apiextensionsv1.JSONSchemaProps) bool {
-				newSimpleLocationToRequiredFields[simpleLocation.String()] = sets.NewString(s.Required...)
-				newToSimpleLocation[s] = simpleLocation
+				newFldPathToRequiredFields[fldPath.String()] = sets.New(s.Required...)
+				fldPathToSimpleLocation[fldPath.String()] = simpleLocation.String()
+				return false
+			})
 
+		newRequiredFields := sets.NewString()
+		newToFldPath := map[*apiextensionsv1.JSONSchemaProps]*field.Path{}
+		SchemaHas(newVersion.Schema.OpenAPIV3Schema, field.NewPath("^"), field.NewPath("^"), nil,
+			func(s *apiextensionsv1.JSONSchemaProps, fldPath, simpleLocation *field.Path, ancestors []*apiextensionsv1.JSONSchemaProps) bool {
+				newToFldPath[s] = fldPath
 				if s.Type == "array" {
 					// if it's an array, we have a different property to check.  A new array cannot be required unless it's ancestor is new.
 					if s.MinLength == nil || *s.MinLength == 0 {
@@ -72,13 +82,13 @@ func (b noNewRequiredFields) Compare(existingCRD, newCRD *apiextensionsv1.Custom
 						return false
 					}
 					// this means we're an array with a minLength, check to see if any parent wrapper is both new and optional.
-					if isAnyAncestorNewAndNullable(ancestors, existingSimpleLocationToJSONSchemaProps, newToSimpleLocation, newSimpleLocationToRequiredFields) {
+					if isAnyAncestorNewAndNullable(ancestors, existingFldPathToJSONSchemaProps, newToFldPath, newFldPathToRequiredFields) {
 						return false
 					}
 
 					// if we search all ancestors and couldn't find a new, optional element, then the current array cannot
 					// have a minLength greater than zero.
-					newRequiredFields.Insert(fmt.Sprintf("%s", simpleLocation.String()))
+					newRequiredFields.Insert(fldPathToSimpleLocation[fldPath.String()])
 					return false
 				}
 
@@ -87,7 +97,7 @@ func (b noNewRequiredFields) Compare(existingCRD, newCRD *apiextensionsv1.Custom
 					return false
 				}
 
-				existingRequired, existedBefore := existingRequiredFields[simpleLocation.String()]
+				existingRequired, existedBefore := existingRequiredFields[fldPath.String()]
 				if !existedBefore && s.Nullable {
 					// if the parent of the required field (current element) didn't exist in the schema before AND
 					// if the parent of the required field is nullable (client doesn't have to set it),
@@ -95,7 +105,7 @@ func (b noNewRequiredFields) Compare(existingCRD, newCRD *apiextensionsv1.Custom
 					return false
 				}
 
-				if isAnyAncestorNewAndNullable(ancestors, existingSimpleLocationToJSONSchemaProps, newToSimpleLocation, newSimpleLocationToRequiredFields) {
+				if isAnyAncestorNewAndNullable(ancestors, existingFldPathToJSONSchemaProps, newToFldPath, newFldPathToRequiredFields) {
 					// if any ancestor of the parent of the required field is new and nullable, then required is allowed.
 					return false
 				}
@@ -104,7 +114,7 @@ func (b noNewRequiredFields) Compare(existingCRD, newCRD *apiextensionsv1.Custom
 				newRequired := sets.NewString(s.Required...)
 				if disallowedRequired := newRequired.Difference(existingRequired); len(disallowedRequired) > 0 {
 					for _, curr := range disallowedRequired.List() {
-						newRequiredFields.Insert(fmt.Sprintf("%s.%s", simpleLocation.String(), curr))
+						newRequiredFields.Insert(fmt.Sprintf("%s.%s", fldPathToSimpleLocation[fldPath.String()], curr))
 					}
 					return false
 				}
@@ -128,15 +138,18 @@ func (b noNewRequiredFields) Compare(existingCRD, newCRD *apiextensionsv1.Custom
 	}, nil
 }
 
+// captures parent from ^.properties[spec].properties[parent]
+var lastIndexOrKeyRegexp = regexp.MustCompile(`.*\[([^\]]+)\]$`)
+
 func isAnyAncestorNewAndNullable(
 	ancestors []*apiextensionsv1.JSONSchemaProps,
-	existingSimpleLocationToJSONSchemaProps map[string]*apiextensionsv1.JSONSchemaProps,
-	newToSimpleLocation map[*apiextensionsv1.JSONSchemaProps]*field.Path,
-	newSimpleLocationToRequiredFields map[string]sets.String) bool {
+	existingFldPathToJSONSchemaProps map[string]*apiextensionsv1.JSONSchemaProps,
+	newToFldPath map[*apiextensionsv1.JSONSchemaProps]*field.Path,
+	newFldPathToRequiredFields map[string]sets.Set[string]) bool {
 
 	for i := len(ancestors) - 1; i >= 0; i-- {
 		ancestor := ancestors[i]
-		ancestorSimpleName := newToSimpleLocation[ancestor]
+		ancestorFldPath := newToFldPath[ancestor]
 		isOptionalArray := ancestor.Type == "array" && (ancestor.MinLength == nil || *ancestor.MinLength == 0)
 		isAncestoryOptional := ancestor.Nullable || isOptionalArray
 		if !isAncestoryOptional {
@@ -144,7 +157,7 @@ func isAnyAncestorNewAndNullable(
 			continue
 		}
 
-		if _, existed := existingSimpleLocationToJSONSchemaProps[ancestorSimpleName.String()]; existed {
+		if _, existed := existingFldPathToJSONSchemaProps[ancestorFldPath.String()]; existed {
 			// if this ancestor previously existed, then it cannot allow the current element to be required
 			continue
 		}
@@ -155,9 +168,13 @@ func isAnyAncestorNewAndNullable(
 
 		// does the current ancestor require
 		parentOfAncestor := ancestors[i-1]
-		tokens := strings.Split(ancestorSimpleName.String(), ".")
-		lastStep := tokens[len(tokens)-1]
-		prevAncestorRequiredFields := newSimpleLocationToRequiredFields[newToSimpleLocation[parentOfAncestor].String()]
+		groups := lastIndexOrKeyRegexp.FindStringSubmatch(ancestorFldPath.String())
+		if len(groups) != 2 {
+			// should not happen: not a valid last step (has no index)
+			continue
+		}
+		lastStep := groups[1]
+		prevAncestorRequiredFields := newFldPathToRequiredFields[newToFldPath[parentOfAncestor].String()]
 		if !prevAncestorRequiredFields.Has(lastStep) {
 			// the current ancestor is not required, then we're ok and don't need to search further
 			return true
