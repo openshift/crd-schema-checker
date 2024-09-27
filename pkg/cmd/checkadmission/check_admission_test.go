@@ -9,9 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/apiserver/pkg/features"
-	"k8s.io/apiserver/pkg/util/feature"
-
 	"github.com/openshift/crd-schema-checker/pkg/manifestcomparators"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
@@ -95,7 +92,6 @@ func TestAdmissionServer(t *testing.T) {
 		tearDown()
 	}()
 
-	feature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%v=false", features.APIPriorityAndFairness))
 	admissionServerOptions := NewAdmissionCheckOptions(testIOStreams)
 	admissionServerOptions.AdmissionServerOptions.RecommendedOptions.SecureServing.Listener,
 		admissionServerOptions.AdmissionServerOptions.RecommendedOptions.SecureServing.BindPort,
@@ -108,6 +104,7 @@ func TestAdmissionServer(t *testing.T) {
 	admissionServerOptions.AdmissionServerOptions.RecommendedOptions.Authorization = nil
 	admissionServerOptions.AdmissionServerOptions.RecommendedOptions.Admission = nil
 	admissionServerOptions.AdmissionServerOptions.RecommendedOptions.CoreAPI.CoreAPIKubeconfigPath = fakeCoreKubeconfig
+	admissionServerOptions.AdmissionServerOptions.RecommendedOptions.Features.EnablePriorityAndFairness = false
 
 	if err := admissionServerOptions.Complete(); err != nil {
 		t.Fatal(err)
