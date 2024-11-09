@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -132,18 +133,30 @@ func (tc *admissionComparatorTest) Test(t *testing.T) {
 		t.Log(warning)
 		if strings.HasPrefix(warning, "fyi: ") {
 			parts := strings.SplitN(warning, ":", 3)
-			name := parts[1]
+
+			// The warning formatting adds space and quotes, need to undo that.
+			name, err := strconv.Unquote(strings.TrimSpace(parts[1]))
+			if err != nil {
+				t.Errorf("failed to unquote %q, has the response change?: %v", parts[1], err)
+			}
+
 			results := comparatorNameToResults[name]
 			results.Name = name
-			results.Infos = append(results.Infos, parts[2])
+			results.Infos = append(results.Infos, strings.TrimSpace(parts[2]))
 			comparatorNameToResults[name] = results
 			continue
 		}
 		parts := strings.SplitN(warning, ":", 2)
-		name := parts[0]
+
+		// We quote the comparator name when returning the warnings.
+		name, err := strconv.Unquote(parts[0])
+		if err != nil {
+			t.Errorf("failed to unquote %q, has the response change?: %v", parts[1], err)
+		}
+
 		results := comparatorNameToResults[name]
 		results.Name = name
-		results.Warnings = append(results.Warnings, parts[1])
+		results.Warnings = append(results.Warnings, strings.TrimSpace(parts[1]))
 		comparatorNameToResults[name] = results
 	}
 
