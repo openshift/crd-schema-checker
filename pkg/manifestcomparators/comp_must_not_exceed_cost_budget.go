@@ -142,6 +142,11 @@ func (b mustNotExceedCostBudget) Validate(crd *apiextensionsv1.CustomResourceDef
 
 				return false
 			})
+
+		if rootCELContext != nil && rootCELContext.TotalCost != nil && rootCELContext.TotalCost.Total > apiextensionsvalidation.StaticEstimatedCRDCostLimit {
+			costErrorMsg := getCostErrorMessage("total CRD cost", rootCELContext.TotalCost.Total, apiextensionsvalidation.StaticEstimatedCRDCostLimit)
+			errsToReport = append(errsToReport, field.Forbidden(field.NewPath("^"), costErrorMsg).Error())
+		}
 	}
 
 	return ComparisonResults{
@@ -193,7 +198,7 @@ func getCostErrorMessage(costName string, expressionCost, costLimit uint64) stri
 	} else {
 		factor = fmt.Sprintf("%.1fx", exceedFactor)
 	}
-	return fmt.Sprintf("%s exceeds budget by factor of %s (try simplifying the rule, or adding maxItems, maxProperties, and maxLength where arrays, maps, and strings are declared)", costName, factor)
+	return fmt.Sprintf("%s exceeds budget by factor of %s (try simplifying the rule(s), or adding maxItems, maxProperties, and maxLength where arrays, maps, and strings are declared)", costName, factor)
 }
 
 // extractCELContext takes a series of CEL contextxs and returns the child context of the last schema in the series.

@@ -1,0 +1,83 @@
+items:
+  - name: MustNotExceedCostBudget
+    errors:
+    - '^: Forbidden: total CRD cost exceeds budget by factor of 1.022425x (try simplifying
+          the rule(s), or adding maxItems, maxProperties, and maxLength where arrays, maps,
+          and strings are declared)'
+    warnings:
+    infos:
+    - '^.spec.firstList[*].longProperty: String has maxLength of 16384.'
+    - '^.spec.firstList[*].longProperty: Field has a maximum cardinality of 10. This is the
+      calculated, worst case number of times the rule will be evaluated.'
+    - '^.spec.firstList[*].longProperty: Rule 0 raw cost is 681617. Estimated total cost
+      of 6816170. The maximum allowable value is 10000000. Rule is 68.16% of allowed budget.'
+    - '^.spec.secondList[*].longProperty: String has maxLength of 16384.'
+    - '^.spec.secondList[*].longProperty: Field has a maximum cardinality of 10. This
+      is the calculated, worst case number of times the rule will be evaluated.'
+    - '^.spec.secondList[*].longProperty: Rule 0 raw cost is 681617. Estimated total cost
+      of 6816170. The maximum allowable value is 10000000. Rule is 68.16% of allowed budget.'
+    - '^.spec.thirdList[*].longProperty: String has maxLength of 16384.'
+    - '^.spec.thirdList[*].longProperty: Field has a maximum cardinality of 10. This
+      is the calculated, worst case number of times the rule will be evaluated.'
+    - '^.spec.thirdList[*].longProperty: Rule 0 raw cost is 681617. Estimated total cost
+      of 6816170. The maximum allowable value is 10000000. Rule is 68.16% of allowed budget.'
+    - '^.spec.fourthList[*].longProperty: String has maxLength of 16384.'
+    - '^.spec.fourthList[*].longProperty: Field has a maximum cardinality of 10. This
+      is the calculated, worst case number of times the rule will be evaluated.'
+    - '^.spec.fourthList[*].longProperty: Rule 0 raw cost is 681617. Estimated total cost
+      of 6816170. The maximum allowable value is 10000000. Rule is 68.16% of allowed budget.'
+    - '^.spec.fifthList[*].longProperty: String has maxLength of 16384.'
+    - '^.spec.fifthList[*].longProperty: Field has a maximum cardinality of 10. This
+      is the calculated, worst case number of times the rule will be evaluated.'
+    - '^.spec.fifthList[*].longProperty: Rule 0 raw cost is 681617. Estimated total cost
+      of 6816170. The maximum allowable value is 10000000. Rule is 68.16% of allowed budget.'
+    - '^.spec.sixthList[*].longProperty: String has maxLength of 16384.'
+    - '^.spec.sixthList[*].longProperty: Field has a maximum cardinality of 10. This
+      is the calculated, worst case number of times the rule will be evaluated.'
+    - '^.spec.sixthList[*].longProperty: Rule 0 raw cost is 681617. Estimated total cost
+      of 6816170. The maximum allowable value is 10000000. Rule is 68.16% of allowed budget.'
+    - '^.spec.seventhList[*].longProperty: String has maxLength of 16384.'
+    - '^.spec.seventhList[*].longProperty: Field has a maximum cardinality of 10. This
+      is the calculated, worst case number of times the rule will be evaluated.'
+    - '^.spec.seventhList[*].longProperty: Rule 0 raw cost is 681617. Estimated total cost
+      of 6816170. The maximum allowable value is 10000000. Rule is 68.16% of allowed budget.'
+    - '^.spec.eighthList[*].longProperty: String has maxLength of 16384.'
+    - '^.spec.eighthList[*].longProperty: Field has a maximum cardinality of 10. This
+      is the calculated, worst case number of times the rule will be evaluated.'
+    - '^.spec.eighthList[*].longProperty: Rule 0 raw cost is 681617. Estimated total cost
+      of 6816170. The maximum allowable value is 10000000. Rule is 68.16% of allowed budget.'
+    - '^.spec.ninthList[*].longProperty: String has maxLength of 16384.'
+    - '^.spec.ninthList[*].longProperty: Field has a maximum cardinality of 10. This
+      is the calculated, worst case number of times the rule will be evaluated.'
+    - '^.spec.ninthList[*].longProperty: Rule 0 raw cost is 681617. Estimated total cost
+      of 6816170. The maximum allowable value is 10000000. Rule is 68.16% of allowed budget.'
+    - '^.spec.tenthList[*].longProperty: String has maxLength of 16384.'
+    - '^.spec.tenthList[*].longProperty: Field has a maximum cardinality of 10. This
+      is the calculated, worst case number of times the rule will be evaluated.'
+    - '^.spec.tenthList[*].longProperty: Rule 0 raw cost is 681617. Estimated total cost
+      of 6816170. The maximum allowable value is 10000000. Rule is 68.16% of allowed budget.'
+    - '^.spec.eleventhList[*].longProperty: String has maxLength of 16384.'
+    - '^.spec.eleventhList[*].longProperty: Field has a maximum cardinality of 10. This
+      is the calculated, worst case number of times the rule will be evaluated.'
+    - '^.spec.eleventhList[*].longProperty: Rule 0 raw cost is 681617. Estimated total cost
+      of 6816170. The maximum allowable value is 10000000. Rule is 68.16% of allowed budget.'
+    - '^.spec.twelfthList[*].longProperty: String has maxLength of 16384.'
+    - '^.spec.twelfthList[*].longProperty: Field has a maximum cardinality of 10. This
+      is the calculated, worst case number of times the rule will be evaluated.'
+    - '^.spec.twelfthList[*].longProperty: Rule 0 raw cost is 681617. Estimated total cost
+      of 6816170. The maximum allowable value is 10000000. Rule is 68.16% of allowed budget.'
+    - '^.spec.thirteenthList[*].longProperty: String has maxLength of 16384.'
+    - '^.spec.thirteenthList[*].longProperty: Field has a maximum cardinality of 10. This
+      is the calculated, worst case number of times the rule will be evaluated.'
+    - '^.spec.thirteenthList[*].longProperty: Rule 0 raw cost is 681617. Estimated total cost
+      of 6816170. The maximum allowable value is 10000000. Rule is 68.16% of allowed budget.'
+    - '^.spec.fourteenthList[*].longProperty: String has maxLength of 16384.'
+    - '^.spec.fourteenthList[*].longProperty: Field has a maximum cardinality of 10. This
+      is the calculated, worst case number of times the rule will be evaluated.'
+    - '^.spec.fourteenthList[*].longProperty: Rule 0 raw cost is 681617. Estimated total cost
+      of 6816170. The maximum allowable value is 10000000. Rule is 68.16% of allowed budget.'
+    - '^.spec.fifteenthList[*].longProperty: String has maxLength of 16384.'
+    - '^.spec.fifteenthList[*].longProperty: Field has a maximum cardinality of 10. This
+      is the calculated, worst case number of times the rule will be evaluated.'
+    - '^.spec.fifteenthList[*].longProperty: Rule 0 raw cost is 681617. Estimated total cost
+      of 6816170. The maximum allowable value is 10000000. Rule is 68.16% of allowed budget.'  

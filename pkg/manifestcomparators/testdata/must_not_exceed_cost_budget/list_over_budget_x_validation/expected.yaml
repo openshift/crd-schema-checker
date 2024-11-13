@@ -3,8 +3,11 @@ items:
     errors:
     - '^.properties[spec].properties[badCELList]: Forbidden:
           estimated rule cost exceeds budget by factor of more than 100x (try simplifying
-          the rule, or adding maxItems, maxProperties, and maxLength where arrays, maps, and
-          strings are declared)'
+          the rule(s), or adding maxItems, maxProperties, and maxLength where arrays, maps,
+          and strings are declared)'
+    - '^: Forbidden: total CRD cost exceeds budget by factor of more than 100x (try simplifying
+          the rule(s), or adding maxItems, maxProperties, and maxLength where arrays, maps,
+          and strings are declared)'
     warnings:
     - '^.spec.badCELList: Array has unbounded maxItems. It will be considered to have
           262143 items. Consider adding a maxItems constraint to reduce the raw rule cost.'
