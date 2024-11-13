@@ -2,8 +2,13 @@ items:
   - name: MustNotExceedCostBudget
     errors:
     - '^.properties[spec].properties[badProperty]: Forbidden:
-          estimated rule cost exceeds budget by factor of 3.3x (try simplifying the rule,
+          estimated rule cost exceeds budget by factor of 3.3x (try simplifying the rule(s),
           or adding maxItems, maxProperties, and maxLength where arrays, maps, and strings
           are declared)'
     warnings:
+    - '^.spec.badProperty: String has unbounded maxLength. It will be considered to have
+          length 3145726. Consider adding a maxLength constraint to reduce the raw rule cost.'
     infos:
+    - '^.spec.badProperty: Field has a maximum cardinality of 1.'
+    - '^.spec.badProperty: Rule 0 raw cost is 32715593. Estimated total cost of 32715593. The maximum allowable
+          value is 10000000. Rule is 327.16% of allowed budget.'

@@ -7,3 +7,5 @@ items:
        | ...........^
     warnings:
     infos:
+    - '^.spec.badCELList: Array has maxItems of 2048.'
+    - '^.spec.badCELList: Field has a maximum cardinality of 1.'

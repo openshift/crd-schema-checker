@@ -3,3 +3,8 @@ items:
     errors: []
     warnings:
     infos:
+    - '^.spec.badList[*].badProperty: String has maxLength of 16384.'
+    - '^.spec.badList[*].badProperty: Field has a maximum cardinality of 10. This is the
+      calculated, worst case number of times the rule will be evaluated.'
+    - '^.spec.badList[*].badProperty: Rule 0 raw cost is 681617. Estimated total cost
+      of 6816170. The maximum allowable value is 10000000. Rule is 68.16% of allowed budget.'

@@ -1,0 +1,16 @@
+items:
+  - name: MustNotExceedCostBudget
+    errors:
+     - '^.properties[spec].properties[badCELList]: Forbidden: estimated rule cost exceeds
+          budget by factor of more than 100x (try simplifying the rule(s), or adding maxItems,
+          maxProperties, and maxLength where arrays, maps, and strings are declared)'
+     - '^: Forbidden: total CRD cost exceeds budget by factor of 30.3x (try simplifying
+          the rule(s), or adding maxItems, maxProperties, and maxLength where arrays, maps,
+          and strings are declared)'
+    warnings:
+    - '^.spec.badCELList: Array has unbounded maxItems. It will be considered to have
+          1048575 items. Consider adding a maxItems constraint to reduce the raw rule cost.'
+    infos:
+    - '^.spec.badCELList: Field has a maximum cardinality of 1.'
+    - '^.spec.badCELList: Rule 0 raw cost is 3028284602. Estimated total cost of 3028284602.
+          The maximum allowable value is 10000000. Rule is 30282.85% of allowed budget.'
