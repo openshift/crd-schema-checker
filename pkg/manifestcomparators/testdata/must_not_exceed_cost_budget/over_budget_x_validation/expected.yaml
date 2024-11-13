@@ -9,7 +9,6 @@ items:
     - '^.spec.badProperty: String has unbounded maxLength. It will be considered to have
           length 3145726. Consider adding a maxLength constraint to reduce the raw rule cost.'
     infos:
-    - '^.spec.badProperty: Field has a maximum cardinality of 1. This is the calculated,
-          worst case number of times the rule will be evaluated.'
+    - '^.spec.badProperty: Field has a maximum cardinality of 1.'
     - '^.spec.badProperty: Rule 0 raw cost is 32715593. Estimated total cost of 32715593. The maximum allowable
-          value is 10000000.'
+          value is 10000000. Rule is 327.16% of allowed budget.'

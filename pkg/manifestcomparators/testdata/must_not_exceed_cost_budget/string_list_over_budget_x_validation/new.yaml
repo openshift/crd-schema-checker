@@ -32,7 +32,7 @@ spec:
               type: object
               properties:
                 badCELList:
-                  description: badProperty is wrong, as it has overly complex CEL validations and no limits
+                  description: badCELList is wrong, as it has overly complex CEL validations and no limits
                   type: array
                   x-kubernetes-list-type: atomic
                   x-kubernetes-validations:

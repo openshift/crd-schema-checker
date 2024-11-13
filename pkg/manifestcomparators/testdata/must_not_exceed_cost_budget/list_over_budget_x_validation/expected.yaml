@@ -9,7 +9,6 @@ items:
     - '^.spec.badCELList: Array has unbounded maxItems. It will be considered to have
           262143 items. Consider adding a maxItems constraint to reduce the raw rule cost.'
     infos:
-    - '^.spec.badCELList: Field has a maximum cardinality of 1. This is the calculated,
-          worst case number of times the rule will be evaluated.'
+    - '^.spec.badCELList: Field has a maximum cardinality of 1.'
     - '^.spec.badCELList: Rule 0 raw cost is 2308968389009. Estimated total cost of 2308968389009. The maximum allowable
-          value is 10000000.'
+          value is 10000000. Rule is 23089683.89% of allowed budget.'

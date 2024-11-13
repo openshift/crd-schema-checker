@@ -1,6 +1,7 @@
 package manifestcomparators
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -92,10 +93,18 @@ func (b mustNotExceedCostBudget) Validate(crd *apiextensionsv1.CustomResourceDef
 
 				for i, cr := range compResults {
 					if celContext.MaxCardinality == nil {
-						unboundedParents := getUnboundedParentFields(ancestry, fldPath)
+						unboundedParents, err := getUnboundedParentFields(ancestry, fldPath)
+						if err != nil {
+							errsToReport = append(errsToReport, err.Error())
+						}
 						warnings = append(warnings, fmt.Sprintf("%s: Field has unbounded cardinality. At least one, variable parent field does not have a maxItems or maxProperties constraint: %s. Falling back to CEL calculated worst case of %d executions.", simpleLocation.String(), strings.Join(unboundedParents, ","), cr.MaxCardinality))
 					} else {
-						infos = append(infos, fmt.Sprintf("%s: Field has a maximum cardinality of %d. This is the calculated, worst case number of times the rule will be evaluated.", simpleLocation.String(), *celContext.MaxCardinality))
+						msg := fmt.Sprintf("%s: Field has a maximum cardinality of %d.", simpleLocation.String(), *celContext.MaxCardinality)
+						if *celContext.MaxCardinality > 1 {
+							msg += " This is the calculated, worst case number of times the rule will be evaluated."
+						}
+
+						infos = append(infos, msg)
 					}
 
 					expressionCost := getExpressionCost(cr, celContext)
@@ -115,7 +124,7 @@ func (b mustNotExceedCostBudget) Validate(crd *apiextensionsv1.CustomResourceDef
 							errsToReport = append(errsToReport, field.Invalid(fldPath, schema.XValidations[i], cr.Error.Detail).Error())
 						}
 					} else {
-						infos = append(infos, fmt.Sprintf("%s: Rule %d raw cost is %d. Estimated total cost of %d. The maximum allowable value is %d.", simpleLocation.String(), i, cr.MaxCost, expressionCost, apiextensionsvalidation.StaticEstimatedCostLimit))
+						infos = append(infos, fmt.Sprintf("%s: Rule %d raw cost is %d. Estimated total cost of %d. The maximum allowable value is %d. Rule is %.2f%% of allowed budget.", simpleLocation.String(), i, cr.MaxCost, expressionCost, apiextensionsvalidation.StaticEstimatedCostLimit, float64(expressionCost*100)/apiextensionsvalidation.StaticEstimatedCostLimit))
 					}
 
 					if cr.MessageExpressionError != nil {
@@ -211,9 +220,14 @@ func extractCELContext(schemas []*apiextensionsv1.JSONSchemaProps, fldPath *fiel
 
 // getUnboundedParentFields returns a list of field paths that have unbounded cardinality in the ancestry path.
 // This is aiming to help users identify where the unbounded cardinality is coming from.
-func getUnboundedParentFields(ancestry []*apiextensionsv1.JSONSchemaProps, fldPath *field.Path) []string {
+func getUnboundedParentFields(ancestry []*apiextensionsv1.JSONSchemaProps, fldPath *field.Path) ([]string, error) {
 	cleanPathParts := getCleanPathParts(fldPath)
 	var path *field.Path
+
+	if len(ancestry)+1 != len(cleanPathParts) {
+		// Ancestry does not include the field itself, the last part of cleanPathParts is the field itself.
+		return nil, errors.New("ancestry and field path do not match")
+	}
 
 	unboundedParents := []string{}
 	for i, s := range ancestry {
@@ -235,7 +249,7 @@ func getUnboundedParentFields(ancestry []*apiextensionsv1.JSONSchemaProps, fldPa
 			unboundedParents = append(unboundedParents, strings.Replace(path.String(), "-1", "*", -1))
 		}
 	}
-	return unboundedParents
+	return unboundedParents, nil
 }
 
 func getCleanPathParts(fldPath *field.Path) []string {

@@ -4,7 +4,6 @@ items:
     warnings:
     infos:
     - '^.spec.badCELList: Array has maxItems of 2048.'
-    - '^.spec.badCELList: Field has a maximum cardinality of 1. This is the calculated,
-          worst case number of times the rule will be evaluated.'
+    - '^.spec.badCELList: Field has a maximum cardinality of 1.'
     - '^.spec.badCELList: Rule 0 raw cost is 5916674. Estimated total cost of 5916674. The maximum allowable
-          value is 10000000.'
+          value is 10000000. Rule is 59.17% of allowed budget.'

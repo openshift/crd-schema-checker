@@ -4,7 +4,6 @@ items:
     warnings:
     infos:
     - '^.spec.badProperty: String has maxLength of 16384.'
-    - '^.spec.badProperty: Field has a maximum cardinality of 1. This is the calculated,
-      worst case number of times the rule will be evaluated.'
+    - '^.spec.badProperty: Field has a maximum cardinality of 1.'
     - '^.spec.badProperty: Rule 0 raw cost is 681617. Estimated total cost of 681617.
-      The maximum allowable value is 10000000.'
+      The maximum allowable value is 10000000. Rule is 6.82% of allowed budget.'

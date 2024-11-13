@@ -12,4 +12,5 @@ items:
     infos:
     - '^.spec.badList[*].badProperty: String has maxLength of 16384.'
     - '^.spec.badList[*].badProperty: Rule 0 raw cost is 681617. Estimated total cost
-          of 714727227392. The maximum allowable value is 10000000.'
+          of 714727227392. The maximum allowable value is 10000000. Rule is 7147272.27% of
+          allowed budget.'
