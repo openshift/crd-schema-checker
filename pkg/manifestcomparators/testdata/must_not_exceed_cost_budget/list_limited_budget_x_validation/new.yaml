@@ -49,6 +49,12 @@ spec:
                         description: value is the value for the key
                         type: string
                         maxLength: 1024
+                      doubleEnum:
+                        allOf:
+                        - enum: ["a", "b", "c"]
+                        - enum: ["a", "b", "c"]
+                        description: doubleEnum is an enum with duplicate enum markers that have not been flattened.
+                        type: string
                     required:
                     - key
                 okProperty:
