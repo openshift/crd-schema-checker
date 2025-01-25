@@ -40,6 +40,26 @@ func (r *crdComparatorRegistry) KnownComparators() []string {
 	return keys.List()
 }
 
+func (r *crdComparatorRegistry) ComparatorsMatchingLabels(labels []string) []string {
+	names := make([]string, 0)
+	labelsMap := make(map[string]interface{})
+
+	for _, label := range labels {
+		labelsMap[label] = struct{}{}
+	}
+
+	for name, comparator := range r.comparators {
+		for _, label := range comparator.Labels() {
+			if _, ok := labelsMap[label]; ok {
+				names = append(names, name)
+				break
+			}
+		}
+	}
+
+	return names
+}
+
 func (r *crdComparatorRegistry) AllComparators() []CRDComparator {
 	ret := []CRDComparator{}
 

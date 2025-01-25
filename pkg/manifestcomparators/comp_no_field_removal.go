@@ -18,6 +18,10 @@ func (noFieldRemoval) Name() string {
 	return "NoFieldRemoval"
 }
 
+func (noFieldRemoval) Labels() []string {
+	return []string{BackwardsCompatibility.String()}
+}
+
 func (noFieldRemoval) WhyItMatters() string {
 	return "If fields are removed, then clients that rely on those fields will not be able to read them or write them."
 }

@@ -16,6 +16,8 @@ type ComparatorOptions struct {
 	DefaultEnabledComparators []string
 	EnabledComparators        []string
 	DisabledComparators       []string
+	ComparatorLabels          []string
+	ComparatorsMatchingLabels []string
 }
 
 func NewComparatorOptions() *ComparatorOptions {
@@ -33,6 +35,7 @@ func NewComparatorOptions() *ComparatorOptions {
 func (o *ComparatorOptions) AddFlags(fs *pflag.FlagSet) {
 	fs.StringSliceVar(&o.DisabledComparators, "disabled-validators", o.DisabledComparators, "list of comparators that must be disabled")
 	fs.StringSliceVar(&o.EnabledComparators, "enabled-validators", o.EnabledComparators, "list of comparators that must be enabled")
+	fs.StringSliceVar(&o.ComparatorLabels, "labels", o.ComparatorLabels, "comparators with matching labels will be enabled")
 }
 
 func (o *ComparatorOptions) Validate() error {
@@ -67,7 +70,14 @@ func (o *ComparatorOptions) Complete() (*ComparatorConfig, error) {
 		return nil, fmt.Errorf("unknown comparators: %v", disabledComparators.List())
 	}
 
-	comparatorsToRun := sets.NewString(o.DefaultEnabledComparators...).Insert(o.EnabledComparators...).Delete(o.DisabledComparators...)
+	o.ComparatorsMatchingLabels = o.ComparatorRegistry.ComparatorsMatchingLabels(o.ComparatorLabels)
+	var baseComparators sets.String
+	if len(o.ComparatorLabels) == 0 {
+		baseComparators = sets.NewString(o.DefaultEnabledComparators...)
+	} else {
+		baseComparators = sets.NewString(o.ComparatorsMatchingLabels...)
+	}
+	comparatorsToRun := baseComparators.Insert(o.EnabledComparators...).Delete(o.DisabledComparators...)
 	ret.ComparatorNames = comparatorsToRun.List()
 
 	return ret, nil

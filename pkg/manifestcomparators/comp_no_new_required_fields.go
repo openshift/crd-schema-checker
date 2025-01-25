@@ -19,6 +19,10 @@ func (noNewRequiredFields) Name() string {
 	return "NoNewRequiredFields"
 }
 
+func (noNewRequiredFields) Labels() []string {
+	return []string{BackwardsCompatibility.String()}
+}
+
 func (noNewRequiredFields) WhyItMatters() string {
 	return "If new fields are required, then old clients will not function properly.  Even if CRD defaulting is used, " +
 		"CRD defaulting requires allowing an object with an empty or missing value to then get defaulted."
