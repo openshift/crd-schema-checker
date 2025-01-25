@@ -17,6 +17,10 @@ func (mustHaveStatus) Name() string {
 	return "MustHaveStatus"
 }
 
+func (mustHaveStatus) Labels() []string {
+	return []string{Style.String()}
+}
+
 func (mustHaveStatus) WhyItMatters() string {
 	return "When the schema has a status field, it should be controlled via a status suberesource for different permissions " +
 		"to control those who can control desired state from those who can control the actual state."

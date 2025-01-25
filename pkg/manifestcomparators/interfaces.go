@@ -13,6 +13,7 @@ type ComparisonResults struct {
 
 type CRDComparator interface {
 	Name() string
+	Labels() []string
 	WhyItMatters() string
 	Compare(existingCRD, newCRD *apiextensionsv1.CustomResourceDefinition) (ComparisonResults, error)
 }
@@ -26,7 +27,29 @@ type CRDComparatorRegistry interface {
 	GetComparator(name string) (CRDComparator, error)
 
 	KnownComparators() []string
+	ComparatorsMatchingLabels(labels []string) []string
 	AllComparators() []CRDComparator
 
 	Compare(existingCRD, newCRD *apiextensionsv1.CustomResourceDefinition, names ...string) ([]ComparisonResults, []error)
+}
+
+type LabelEnum int
+
+const (
+	BackwardsCompatibility LabelEnum = iota
+	DataType
+	Style
+)
+
+func (l LabelEnum) String() string {
+	switch l {
+	case BackwardsCompatibility:
+		return "BackwardsCompatibility"
+	case DataType:
+		return "DataType"
+	case Style:
+		return "Style"
+	default:
+		return "Unknown"
+	}
 }

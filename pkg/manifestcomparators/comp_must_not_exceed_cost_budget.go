@@ -28,6 +28,10 @@ func (mustNotExceedCostBudget) Name() string {
 	return "MustNotExceedCostBudget"
 }
 
+func (mustNotExceedCostBudget) Labels() []string {
+	return []string{Style.String()}
+}
+
 func (mustNotExceedCostBudget) WhyItMatters() string {
 	return ""
 }

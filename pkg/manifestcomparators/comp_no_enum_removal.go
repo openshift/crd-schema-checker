@@ -18,6 +18,10 @@ func (noEnumRemoval) Name() string {
 	return "NoEnumRemoval"
 }
 
+func (noEnumRemoval) Labels() []string {
+	return []string{BackwardsCompatibility.String()}
+}
+
 func (noEnumRemoval) WhyItMatters() string {
 	return "If enums are removed, then clients that use those enum values will not be able to upgrade to the newest CRD."
 }

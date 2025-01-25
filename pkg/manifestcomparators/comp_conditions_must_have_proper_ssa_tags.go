@@ -18,6 +18,10 @@ func (conditionsMustHaveProperSSATags) Name() string {
 	return "ConditionsMustHaveProperSSATags"
 }
 
+func (conditionsMustHaveProperSSATags) Labels() []string {
+	return []string{Style.String()}
+}
+
 func (conditionsMustHaveProperSSATags) WhyItMatters() string {
 	return "Conditions should follow the standard schema included in  " +
 		"https://github.com/kubernetes/apimachinery/blob/release-1.29/pkg/apis/meta/v1/types.go#L1482-L1542" +

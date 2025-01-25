@@ -17,6 +17,10 @@ func (noUints) Name() string {
 	return "NoUints"
 }
 
+func (noUints) Labels() []string {
+	return []string{DataType.String(), Style.String()}
+}
+
 func (noUints) WhyItMatters() string {
 	return "Unsigned integers don't have consistent support across languages and libraries."
 }

@@ -17,6 +17,10 @@ func (noMaps) Name() string {
 	return "NoMaps"
 }
 
+func (noMaps) Labels() []string {
+	return []string{DataType.String(), Style.String()}
+}
+
 func (noMaps) WhyItMatters() string {
 	return "When serialized into yaml or json, maps don't have \"names\" associated with their key.  This makes " +
 		"it less obvious what the key of map means or what is for.  Additionally, maps are not guaranteed stable " +
