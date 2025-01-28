@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	//"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
@@ -70,7 +69,6 @@ func (b noDataTypeChange) Compare(existingCRD, newCRD *apiextensionsv1.CustomRes
 		existingFieldsAndTypes := getFieldsAndTypes(existingVersion)
 		newFieldsAndTypes := getFieldsAndTypes(&newVersion)
 
-		//removedFields := existingFields.Difference(newFields)
 		changedTypes := getChangedTypes(existingFieldsAndTypes, newFieldsAndTypes)
 		for changedField, changedType := range changedTypes {
 			errsToReport = append(errsToReport, fmt.Sprintf("crd/%v version/%v data type of field/%v may not be changed from %v", newCRD.Name, newVersion.Name, changedField, changedType))
