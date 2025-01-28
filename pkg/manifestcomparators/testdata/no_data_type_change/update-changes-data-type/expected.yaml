@@ -1,0 +1,5 @@
+items:
+  - name: NoDataTypeChange
+    errors: [crd/schedulers.config.openshift.io version/v1 data type of field/^.spec.profile may not be changed from string]
+    warnings:
+    infos:
