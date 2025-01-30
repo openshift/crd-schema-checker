@@ -34,7 +34,7 @@ func getFieldsAndTypes(version *apiextensionsv1.CustomResourceDefinitionVersion)
 
 type TypeChange struct {
 	ExistingType string
-	NewType string
+	NewType      string
 }
 
 func getChangedTypes(existingFieldsAndTypes map[string]string, newFieldsAndTypes map[string]string) map[string]TypeChange {
