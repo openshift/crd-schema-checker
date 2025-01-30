@@ -30,4 +30,4 @@ spec:
               properties:
                 profile:
                   description: "Fake description 2"
-                  type: boolean
+                  type: integer
