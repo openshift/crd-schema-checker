@@ -32,13 +32,18 @@ func getFieldsAndTypes(version *apiextensionsv1.CustomResourceDefinitionVersion)
 	return fieldsAndTypes
 }
 
-func getChangedTypes(existingFieldsAndTypes map[string]string, newFieldsAndTypes map[string]string) map[string]string {
-	changedTypes := make(map[string]string)
+type TypeChange struct {
+	ExistingType string
+	NewType string
+}
+
+func getChangedTypes(existingFieldsAndTypes map[string]string, newFieldsAndTypes map[string]string) map[string]TypeChange {
+	changedTypes := make(map[string]TypeChange)
 
 	for existingField, existingType := range existingFieldsAndTypes {
 		if newType, ok := newFieldsAndTypes[existingField]; ok {
 			if existingType != newType {
-				changedTypes[existingField] = existingType
+				changedTypes[existingField] = TypeChange{ExistingType: existingType, NewType: newType}
 			}
 		}
 	}
@@ -60,7 +65,6 @@ func (b noDataTypeChange) Compare(existingCRD, newCRD *apiextensionsv1.CustomRes
 	errsToReport := []string{}
 
 	for _, newVersion := range newCRD.Spec.Versions {
-
 		existingVersion := GetVersionByName(existingCRD, newVersion.Name)
 		if existingVersion == nil {
 			continue
@@ -71,7 +75,7 @@ func (b noDataTypeChange) Compare(existingCRD, newCRD *apiextensionsv1.CustomRes
 
 		changedTypes := getChangedTypes(existingFieldsAndTypes, newFieldsAndTypes)
 		for changedField, changedType := range changedTypes {
-			errsToReport = append(errsToReport, fmt.Sprintf("crd/%v version/%v data type of field/%v may not be changed from %v", newCRD.Name, newVersion.Name, changedField, changedType))
+			errsToReport = append(errsToReport, fmt.Sprintf("crd/%v version/%v data type of field/%v may not be changed from %v. New data type %v", newCRD.Name, newVersion.Name, changedField, changedType.ExistingType, changedType.NewType))
 		}
 	}
 
