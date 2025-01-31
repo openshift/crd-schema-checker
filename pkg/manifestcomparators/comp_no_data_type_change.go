@@ -75,7 +75,7 @@ func (b noDataTypeChange) Compare(existingCRD, newCRD *apiextensionsv1.CustomRes
 
 		changedTypes := getChangedTypes(existingFieldsAndTypes, newFieldsAndTypes)
 		for changedField, changedType := range changedTypes {
-			errsToReport = append(errsToReport, fmt.Sprintf("crd/%v version/%v data type of field/%v may not be changed from %v. New data type %v", newCRD.Name, newVersion.Name, changedField, changedType.ExistingType, changedType.NewType))
+			errsToReport = append(errsToReport, fmt.Sprintf("crd/%v version/%v data type of field/%v may not be changed from %v to %v", newCRD.Name, newVersion.Name, changedField, changedType.ExistingType, changedType.NewType))
 		}
 	}
 
