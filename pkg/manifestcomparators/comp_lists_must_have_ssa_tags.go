@@ -17,6 +17,10 @@ func (listsMustHaveSSATags) Name() string {
 	return "ListsMustHaveSSATags"
 }
 
+func (listsMustHaveSSATags) Labels() []string {
+	return []string{Style.String()}
+}
+
 func (listsMustHaveSSATags) WhyItMatters() string {
 	return "Lists require x-kubernetes-list-type tags in order to properly merge different requests from different field managers.  " +
 		"Valid value are 'atomic', 'set', and 'map' and are indicated in kubebuilder tags with '// +listType=<val>' and " +

@@ -17,6 +17,10 @@ func (noFloats) Name() string {
 	return "NoFloats"
 }
 
+func (noFloats) Labels() []string {
+	return []string{DataType.String(), Style.String()}
+}
+
 func (noFloats) WhyItMatters() string {
 	return "Floating-point values cannot be reliably round-tripped (encoded and re-decoded) without changing, " +
 		"and have varying precision and representations across languages and architectures."

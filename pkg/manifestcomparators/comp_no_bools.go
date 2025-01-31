@@ -17,6 +17,10 @@ func (noBools) Name() string {
 	return "NoBools"
 }
 
+func (noBools) Labels() []string {
+	return []string{DataType.String(), Style.String()}
+}
+
 func (noBools) WhyItMatters() string {
 	return "Booleans rarely stay booleans and can never develop new options.  This frequently leads to cases where there " +
 		"are multiple boolean fields, with some combinations of values not being allowed.  Additionally, strings provide " +
