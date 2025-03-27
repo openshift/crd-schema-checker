@@ -8,6 +8,9 @@ include $(addprefix ./vendor/github.com/openshift/build-machinery-go/make/, \
 	targets/openshift/images.mk \
 )
 
+# Make set -o pipefail working with GNU make
+SHELL := /bin/bash
+
 # Exclude e2e tests from unit testing
 GO_TEST_PACKAGES :=./pkg/... ./cmd/...
 
