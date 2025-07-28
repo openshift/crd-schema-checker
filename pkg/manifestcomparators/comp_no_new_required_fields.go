@@ -24,7 +24,7 @@ func (noNewRequiredFields) WhyItMatters() string {
 		"CRD defaulting requires allowing an object with an empty or missing value to then get defaulted."
 }
 
-// isFieldOptional checks if a field is optional (nullable or not required by its parent)
+// isFieldOptional checks if a field is optional (ie not required by its parent)
 func isFieldOptional(
 	s *apiextensionsv1.JSONSchemaProps,
 	ancestors []*apiextensionsv1.JSONSchemaProps,
@@ -32,7 +32,8 @@ func isFieldOptional(
 	newToFldPath map[*apiextensionsv1.JSONSchemaProps]*field.Path,
 	newFldPathToRequiredFields map[string]sets.Set[string]) bool {
 
-	if s.Nullable {
+	// Check if field is an optional array
+	if s.Type == "array" && (s.MinLength == nil || *s.MinLength == 0) {
 		return true
 	}
 
@@ -180,12 +181,8 @@ func isAnyAncestorNewAndNullable(
 		ancestor := ancestors[i]
 		ancestorFldPath := newToFldPath[ancestor]
 
-		// Check if ancestor is optional (nullable, optional array, or not required by parent)
-		isOptionalArray := ancestor.Type == "array" && (ancestor.MinLength == nil || *ancestor.MinLength == 0)
-		isAncestorOptional := ancestor.Nullable || isOptionalArray ||
-			(i > 0 && isFieldOptional(ancestor, ancestors[:i], ancestorFldPath, newToFldPath, newFldPathToRequiredFields))
-
-		if !isAncestorOptional {
+		// check if the ancestor is optional
+		if !isFieldOptional(ancestor, ancestors[:i], ancestorFldPath, newToFldPath, newFldPathToRequiredFields) {
 			// if this ancestor isn't optional, then it cannot allow the current element to be required
 			continue
 		}
