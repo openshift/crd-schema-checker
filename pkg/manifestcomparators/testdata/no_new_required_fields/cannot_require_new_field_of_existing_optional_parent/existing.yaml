@@ -31,7 +31,6 @@ spec:
               description: spec holds user settable values for configuration
               type: object
               properties:
-                grandparent:
+                parent:
                   description: new wrapper
                   type: object
-                  nullable: true

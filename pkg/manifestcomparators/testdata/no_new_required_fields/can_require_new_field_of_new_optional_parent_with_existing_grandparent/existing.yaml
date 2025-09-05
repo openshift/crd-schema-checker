@@ -30,18 +30,3 @@ spec:
             spec:
               description: spec holds user settable values for configuration
               type: object
-              properties:
-                grandparent:
-                  description: new wrapper
-                  type: object
-                  nullable: true
-                  properties:
-                    parent:
-                      description: new wrapper
-                      type: object
-                      required:
-                        - child
-                      properties:
-                        child:
-                          description: new wrapper
-                          type: object
