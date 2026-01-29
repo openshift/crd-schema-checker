@@ -1,9 +1,11 @@
 package checkadmission
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"path"
 	"testing"
@@ -70,7 +72,7 @@ func TestAdmissionServer(t *testing.T) {
 	}
 
 	stopCh := make(chan struct{})
-	var errCh chan error
+	errCh := make(chan error, 1)
 	tearDown := func() {
 		// Closing stopCh is stopping apiserver and cleaning up
 		// after itself, including shutting down its storage layer.
@@ -112,11 +114,15 @@ func TestAdmissionServer(t *testing.T) {
 	if err := admissionServerOptions.Validate([]string{}); err != nil {
 		t.Fatal(err)
 	}
+
 	go func() {
-		if err := admissionServerOptions.RunAdmissionServer(stopCh); err != nil {
-			errCh <- err
-		}
+		errCh <- admissionServerOptions.RunAdmissionServer(stopCh)
 	}()
+
+	serverURL := fmt.Sprintf("https://localhost:%d", admissionServerOptions.AdmissionServerOptions.RecommendedOptions.SecureServing.BindPort)
+	if err := waitForServerReady(serverURL, 30*time.Second, errCh); err != nil {
+		t.Fatal(fmt.Errorf("server failed to become ready: %v", err))
+	}
 
 	restConfig := &rest.Config{
 		Host:          net.JoinHostPort("localhost", fmt.Sprintf("%d", admissionServerOptions.AdmissionServerOptions.RecommendedOptions.SecureServing.BindPort)),
@@ -167,4 +173,35 @@ func createLocalhostListenerOnFreePort() (net.Listener, int, error) {
 	}
 
 	return ln, tcpAddr.Port, nil
+}
+
+func waitForServerReady(serverURL string, timeout time.Duration, errCh <-chan error) error {
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+		Timeout: 1 * time.Second,
+	}
+
+	deadline := time.Now().Add(timeout)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case err := <-errCh:
+			return fmt.Errorf("server failed to start: %w", err)
+		case <-ticker.C:
+			if time.Now().After(deadline) {
+				return fmt.Errorf("server did not become ready within %v", timeout)
+			}
+			resp, err := client.Get(serverURL + "/readyz")
+			if err == nil {
+				resp.Body.Close()
+				if resp.StatusCode == http.StatusOK {
+					return nil
+				}
+			}
+		}
+	}
 }

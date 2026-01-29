@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
-	"k8s.io/apiserver/pkg/util/version"
+	"k8s.io/apiserver/pkg/util/compatibility"
 	restclient "k8s.io/client-go/rest"
 
 	"github.com/openshift/generic-admission-server/pkg/registry/admissionreview"
@@ -125,7 +125,7 @@ type CompletedConfig struct {
 
 // Complete fills in any fields not set that are required to have valid data. It's mutating the receiver.
 func (c *Config) Complete() CompletedConfig {
-	c.GenericConfig.EffectiveVersion = version.DefaultBuildEffectiveVersion()
+	c.GenericConfig.EffectiveVersion = compatibility.DefaultBuildEffectiveVersion()
 	completedCfg := completedConfig{
 		c.GenericConfig.Complete(),
 		&c.ExtraConfig,
@@ -199,8 +199,8 @@ func (c completedConfig) New() (*AdmissionServer, error) {
 			continue
 		}
 		s.GenericAPIServer.AddPostStartHookOrDie(postStartName,
-			func(context genericapiserver.PostStartHookContext) error {
-				return admissionHook.Initialize(restConfig, context.StopCh)
+			func(hookContext genericapiserver.PostStartHookContext) error {
+				return admissionHook.Initialize(restConfig, hookContext.Done())
 			},
 		)
 	}

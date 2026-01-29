@@ -2,7 +2,7 @@ items:
   - name: MustNotExceedCostBudget
     errors:
     - |-
-      ^.properties[spec].properties[badCELList]: Invalid value: apiextensions.ValidationRule{Rule:"self.all(x,", Message:"", MessageExpression:"", Reason:(*apiextensions.FieldValueErrorReason)(nil), FieldPath:"", OptionalOldSelf:(*bool)(nil)}: compilation failed: ERROR: <input>:1:12: Syntax error: mismatched input '<EOF>' expecting {'[', '{', '(', '.', '-', '!', 'true', 'false', 'null', NUM_FLOAT, NUM_INT, NUM_UINT, STRING, BYTES, IDENTIFIER}
+      ^.properties[spec].properties[badCELList]: Invalid value: {"Rule":"self.all(x,","Message":"","MessageExpression":"","Reason":null,"FieldPath":"","OptionalOldSelf":null}: compilation failed: ERROR: <input>:1:12: Syntax error: mismatched input '<EOF>' expecting {'[', '{', '(', '.', '-', '!', 'true', 'false', 'null', NUM_FLOAT, NUM_INT, NUM_UINT, STRING, BYTES, IDENTIFIER}
        | self.all(x,
        | ...........^
     warnings:

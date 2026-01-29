@@ -110,7 +110,7 @@ func (tc *admissionComparatorTest) Test(t *testing.T) {
 			t.Log(cause.Message)
 			name := string(cause.Type)
 			if name == "EvaluationError" {
-				actualErrors = append(actualErrors, fmt.Errorf(cause.Message))
+				actualErrors = append(actualErrors, fmt.Errorf("%s", cause.Message))
 				continue
 			}
 			results := comparatorNameToResults[name]
